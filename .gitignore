@@ -37,5 +37,37 @@
 *.out
 *.app
 
-# debug information files
+# Debug information files
 *.dwo
+
+# Other MSVC/Windows artifacts
+*.idb
+*.exp
+
+# Build outputs
+/build/
+/out/
+/cmake-build-*/
+**/CMakeFiles/
+**/CMakeCache.txt
+**/cmake_install.cmake
+**/*.ninja
+**/*.ninja_deps
+**/*.ninja_log
+
+# Submodule build/install folders (if you build inside repo)
+external/DPP/build/
+external/DPP/out/
+external/DPP/cmake-build-*/
+external/DPP/install/
+
+# VS Code (keep only shared configs)
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/c_cpp_properties.json
+
+# Secrets
+.env
+.env.*
+!.env.example
