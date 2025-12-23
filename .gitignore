@@ -56,10 +56,10 @@
 **/*.ninja_log
 
 # Submodule build/install folders (if you build inside repo)
-external/DPP/build/
-external/DPP/out/
-external/DPP/cmake-build-*/
-external/DPP/install/
+external/**/build/
+external/**/out/
+external/**/cmake-build-*/
+external/**/install/
 
 # VS Code (keep only shared configs)
 .vscode/*
