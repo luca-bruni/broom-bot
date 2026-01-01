@@ -71,3 +71,4 @@ external/**/install/
 .env
 .env.*
 !.env.example
+config.json

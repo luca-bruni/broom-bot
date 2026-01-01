@@ -1,50 +1,59 @@
 #include <dpp/dpp.h>
+#include <dpp/nlohmann/json.hpp>
+
 #include <fstream>
-#include <sstream>
-#include <cstdlib>
 #include <string>
-#include <map>
 
-// Simple .env loader
-std::map<std::string, std::string> load_env(const std::string& path) {
-    std::map<std::string, std::string> env;
-    std::ifstream file(path);
-    if (!file.is_open()) return env;
+#include <windows.h>
 
-    std::string line;
-    while (std::getline(file, line)) {
-        // Ignore comments and empty lines
-        if (line.empty() || line[0] == '#') continue;
-        auto eq = line.find('=');
-        if (eq == std::string::npos) continue;
-        std::string key = line.substr(0, eq);
-        std::string value = line.substr(eq + 1);
-        env[key] = value;
-        setenv(key.c_str(), value.c_str(), 1); // also set in process env
+static std::string exe_dir() {
+    char buf[MAX_PATH]{};
+    DWORD n = GetModuleFileNameA(nullptr, buf, MAX_PATH);
+    std::string p(buf, n ? n : 0);
+    auto pos = p.find_last_of("\\/");
+    return (pos == std::string::npos) ? std::string(".") : p.substr(0, pos);
+}
+
+static nlohmann::json read_json_file(const std::string& path) {
+    std::ifstream f(path);
+    if (!f.is_open())
+        return nlohmann::json::object();
+
+    nlohmann::json j;
+    try {
+        f >> j;
+    } catch (...) {
+        return nlohmann::json::object();
     }
-    return env;
+
+    return j;
 }
 
 int main() {
-    // Load .env file (must exist in the project root)
-    auto env = load_env(".env");
+    // Prefer config.json next to the executable, then fall back to cwd.
+    const std::string cfg_path = exe_dir() + "\\config.json";
+    nlohmann::json cfg = read_json_file(cfg_path);
+    if (cfg.empty())
+        cfg = read_json_file("config.json");
 
-	dpp::cluster bot(std::getenv("BOT_TOKEN"));
+    const std::string token = cfg.value("BOT_TOKEN", "");
+    if (token.empty()) {
+        fprintf(stderr, "Missing BOT_TOKEN in config.json.\n");
+        return 1;
+    }
 
-	bot.on_slashcommand([](auto event) {
-		if (event.command.get_command_name() == "ping") {
-			event.reply("Pong!");
-		}
-	});
+    dpp::cluster bot(token);
 
-	bot.on_ready([&bot](auto event) {
-		if (dpp::run_once<struct register_bot_commands>()) {
-			bot.global_command_create(
-				dpp::slashcommand("ping", "Ping pong!", bot.me.id)
-			);
-		}
-	});
+    bot.on_slashcommand([](const dpp::slashcommand_t& e) {
+        if (e.command.get_command_name() == "ping") e.reply("Pong!");
+    });
 
-	bot.start(dpp::st_wait);
-	return 0;
+    bot.on_ready([&bot](const dpp::ready_t&) {
+        if (dpp::run_once<struct register_bot_commands>()) {
+            bot.global_command_create(dpp::slashcommand("ping", "Ping pong!", bot.me.id));
+        }
+    });
+
+    bot.start(dpp::st_wait);
+    return 0;
 }
