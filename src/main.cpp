@@ -1,37 +1,19 @@
-#include "broom_bot/config/json_config.h"
-
 #include <dpp/dpp.h>
 
-#include <fstream>
-#include <string>
+#include <cstdio>
 
-#include <windows.h>
-
-static std::string exe_dir() {
-    char buf[MAX_PATH]{};
-    DWORD n = GetModuleFileNameA(nullptr, buf, MAX_PATH);
-    std::string p(buf, n ? n : 0);
-    auto pos = p.find_last_of("\\/");
-    return (pos == std::string::npos) ? std::string(".") : p.substr(0, pos);
-}
+#include "broom_bot/config/json_config.h"
 
 int main() {
+    broom_bot::config::BotConfig cfg;
     std::string err;
 
-    // Prefer config.json next to the executable, then fall back to cwd.
-    const std::string cfg_path = exe_dir() + "\\config.json";
-    auto cfg = broom_bot::config::read_json_file("config.json", &err);
-    if (cfg.empty() && !err.empty()) {
-        fprintf(stderr, "%s\n", err.c_str());
-    }
-
-    const std::string token = cfg.value("BOT_TOKEN", "");
-    if (token.empty()) {
-        fprintf(stderr, "Missing BOT_TOKEN in config.json.\n");
+    if (!broom_bot::config::load_bot_config(cfg, &err)) {
+        if (!err.empty()) fprintf(stderr, "%s\n", err.c_str());
         return 1;
     }
 
-    dpp::cluster bot(token);
+    dpp::cluster bot(cfg.bot_token);
 
     bot.on_slashcommand([](const dpp::slashcommand_t& e) {
         if (e.command.get_command_name() == "ping") e.reply("Pong!");
