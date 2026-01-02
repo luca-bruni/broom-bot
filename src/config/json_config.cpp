@@ -1,5 +1,7 @@
 #include "broom_bot/config/json_config.h"
 
+#include <cstdint>
+#include <cstdlib>
 #include <fstream>
 
 nlohmann::json broom_bot::config::read_json_file(const std::string& path,
@@ -63,6 +65,23 @@ bool broom_bot::config::load_bot_config(BotConfig& out,
             *error = "Missing BOT_TOKEN in config.json.";
 
         return false;
+    }
+
+    out.dev_guild_id = 0;
+    if (cfg.contains("DEV_GUILD_ID")) {
+        try {
+            if (cfg["DEV_GUILD_ID"].is_string()) {
+                out.dev_guild_id = std::stoull(cfg["DEV_GUILD_ID"].get<std::string>());
+            } else if (cfg["DEV_GUILD_ID"].is_number_unsigned()) {
+                out.dev_guild_id = cfg["DEV_GUILD_ID"].get<std::uint64_t>();
+            } else if (error) {
+                *error = "DEV_GUILD_ID must be a string or an unsigned number.";
+                return false;
+            }
+        } catch (...) {
+            if (error) *error = "DEV_GUILD_ID is not a valid Discord server ID.";
+            return false;
+        }
     }
 
     return true;

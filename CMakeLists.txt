@@ -45,6 +45,8 @@ endif()
 
 add_executable(broom_bot
   src/main.cpp
+  src/app/app.cpp
+  src/bot/commands.cpp
   src/config/json_config.cpp
 )
 

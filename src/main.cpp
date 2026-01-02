@@ -1,8 +1,9 @@
-#include <dpp/dpp.h>
-
 #include <cstdio>
+#include <string>
 
+#include "broom_bot/app/app.h"
 #include "broom_bot/config/json_config.h"
+
 
 int main() {
     broom_bot::config::BotConfig cfg;
@@ -13,18 +14,5 @@ int main() {
         return 1;
     }
 
-    dpp::cluster bot(cfg.bot_token);
-
-    bot.on_slashcommand([](const dpp::slashcommand_t& e) {
-        if (e.command.get_command_name() == "ping") e.reply("Pong!");
-    });
-
-    bot.on_ready([&bot](const dpp::ready_t&) {
-        if (dpp::run_once<struct register_bot_commands>()) {
-            bot.global_command_create(dpp::slashcommand("ping", "Ping pong!", bot.me.id));
-        }
-    });
-
-    bot.start(dpp::st_wait);
-    return 0;
+    return broom_bot::app::run(cfg);
 }

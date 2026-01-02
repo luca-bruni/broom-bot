@@ -8,6 +8,7 @@ namespace broom_bot::config {
 
 struct BotConfig {
     std::string bot_token;
+    std::uint64_t dev_guild_id = 0; // 0 = global commands
 };
 
 /*
