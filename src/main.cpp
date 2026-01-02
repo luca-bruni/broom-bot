@@ -1,5 +1,6 @@
+#include "broom_bot/config/json_config.h"
+
 #include <dpp/dpp.h>
-#include <dpp/nlohmann/json.hpp>
 
 #include <fstream>
 #include <string>
@@ -14,27 +15,15 @@ static std::string exe_dir() {
     return (pos == std::string::npos) ? std::string(".") : p.substr(0, pos);
 }
 
-static nlohmann::json read_json_file(const std::string& path) {
-    std::ifstream f(path);
-    if (!f.is_open())
-        return nlohmann::json::object();
-
-    nlohmann::json j;
-    try {
-        f >> j;
-    } catch (...) {
-        return nlohmann::json::object();
-    }
-
-    return j;
-}
-
 int main() {
+    std::string err;
+
     // Prefer config.json next to the executable, then fall back to cwd.
     const std::string cfg_path = exe_dir() + "\\config.json";
-    nlohmann::json cfg = read_json_file(cfg_path);
-    if (cfg.empty())
-        cfg = read_json_file("config.json");
+    auto cfg = broom_bot::config::read_json_file("config.json", &err);
+    if (cfg.empty() && !err.empty()) {
+        fprintf(stderr, "%s\n", err.c_str());
+    }
 
     const std::string token = cfg.value("BOT_TOKEN", "");
     if (token.empty()) {

@@ -1,6 +1,17 @@
 cmake_minimum_required(VERSION 3.20)
 project(broom_bot LANGUAGES CXX)
 
+# Single-config generators (Ninja): Microsoft CMake defaults CMAKE_BUILD_TYPE to Debug.
+# We want Release by default without requiring -DCMAKE_BUILD_TYPE=Release.
+set(BB_BUILD_TYPE "Release" CACHE STRING "broom_bot build type (single-config only)")
+set_property(CACHE BB_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
+
+if(NOT CMAKE_CONFIGURATION_TYPES)
+  # Force the actual CMake build type from our project default.
+  set(CMAKE_BUILD_TYPE "${BB_BUILD_TYPE}" CACHE STRING "Build type" FORCE)
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -32,7 +43,14 @@ else()
   find_package(dpp CONFIG REQUIRED)
 endif()
 
-add_executable(broom_bot src/main.cpp)
+add_executable(broom_bot
+  src/main.cpp
+  src/config/json_config.cpp
+)
+
+target_include_directories(broom_bot PRIVATE
+  ${CMAKE_SOURCE_DIR}/include
+)
 
 if(BB_BUILD_DPP)
   target_link_libraries(broom_bot PRIVATE dpp)
