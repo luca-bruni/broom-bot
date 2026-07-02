@@ -1,50 +1,26 @@
+#include "commands/all_commands.hpp"
+#include "core/config.hpp"
+#include "core/registry.hpp"
+
 #include <dpp/dpp.h>
-#include <fstream>
-#include <sstream>
-#include <cstdlib>
-#include <string>
-#include <map>
-
-// Simple .env loader
-std::map<std::string, std::string> load_env(const std::string& path) {
-    std::map<std::string, std::string> env;
-    std::ifstream file(path);
-    if (!file.is_open()) return env;
-
-    std::string line;
-    while (std::getline(file, line)) {
-        // Ignore comments and empty lines
-        if (line.empty() || line[0] == '#') continue;
-        auto eq = line.find('=');
-        if (eq == std::string::npos) continue;
-        std::string key = line.substr(0, eq);
-        std::string value = line.substr(eq + 1);
-        env[key] = value;
-        setenv(key.c_str(), value.c_str(), 1); // also set in process env
-    }
-    return env;
-}
+#include <cstdio>
+#include <exception>
 
 int main() {
-    // Load .env file (must exist in the project root)
-    auto env = load_env(".env");
+    broom::Config config;
+    try {
+        config = broom::Config::load();
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "Config error: %s\n", e.what());
+        return 1;
+    }
 
-	dpp::cluster bot(std::getenv("BOT_TOKEN"));
+    dpp::cluster bot(config.bot_token);
+    bot.on_log(dpp::utility::cout_logger());
 
-	bot.on_slashcommand([](auto event) {
-		if (event.command.get_command_name() == "ping") {
-			event.reply("Pong!");
-		}
-	});
+    broom::CommandRegistry registry(broom::all_commands());
+    registry.attach(bot, config.dev_guild_id);
 
-	bot.on_ready([&bot](auto event) {
-		if (dpp::run_once<struct register_bot_commands>()) {
-			bot.global_command_create(
-				dpp::slashcommand("ping", "Ping pong!", bot.me.id)
-			);
-		}
-	});
-
-	bot.start(dpp::st_wait);
-	return 0;
+    bot.start(dpp::st_wait);
+    return 0;
 }
