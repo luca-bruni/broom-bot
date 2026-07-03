@@ -18,7 +18,7 @@ src/
     all_commands.cpp  Explicit factory list of every command
 external/DPP          DPP pinned as git submodule
 CMakeLists.txt        Dual-mode build (see Build)
-.env                  Secrets, gitignored (.env.example documents required keys)
+.env                  Secrets, gitignored (.env.sample documents required keys)
 ```
 
 ## Command system
