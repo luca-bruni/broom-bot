@@ -27,9 +27,9 @@ nature — jobs must survive restarts and respect Discord rate limits.
 
 No automatic indexing on guild join. Admins run an explicit command:
 
-- `/cache build [scope] [channel] [from] [to]` — index message metadata+content
-  into SQLite. `scope`: `guild` (default) or `channel` (with `channel` option).
-  `from`/`to`: ISO dates (YYYY-MM-DD); defaults: beginning of history → now.
+- `/cache build [channel] [from] [to]` — index message metadata+content into
+  SQLite. `channel` omitted = entire guild. `from`/`to`: ISO dates
+  (YYYY-MM-DD); defaults: beginning of history → now.
 - `/cache update [channel]` — forward-fill each covered channel from its newest
   cached message to now (manual catch-up; no new ranges).
 - `/cache status` — coverage (per-channel indexed ranges, row counts, freshness).
@@ -64,9 +64,14 @@ full cache that only updates on demand.
 
 ## Bulk commands
 
-- `/purge keywords [scope] [channel] [from] [to]` — delete matching messages.
-  `scope` defaults to `channel` (destructive commands default narrow; caching
-  defaults wide). Date defaults: all history.
+- Scope is expressed as a **subcommand**, not an argument — guild-wide deletion
+  is a distinct command path you cannot reach by omitting an option:
+  - `/purge channel keywords:<w> [target] [from] [to] [source]` — `target`
+    defaults to the invoking channel.
+  - `/purge guild keywords:<w> [from] [to] [source]`
+  Date defaults: all history. (Cache commands keep a single optional `channel`
+  argument where omitted = entire guild: building a cache is reversible, so
+  defaulting wide is safe there; deleting is not, so purge makes you say it.)
 - Flow: **always dry-run first** — job counts matches, replies "N messages,
   ~T estimated — Confirm / Cancel" buttons; deletion only on confirm.
 - Bulk commands take a `source` option controlling discovery only (deletion
