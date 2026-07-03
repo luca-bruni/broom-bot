@@ -70,6 +70,9 @@ external/**/install/
 # Claude Code local settings
 .claude/
 
+# Bot runtime data (SQLite database)
+/data/
+
 # Secrets
 .env
 .env.*

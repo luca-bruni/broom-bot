@@ -43,6 +43,9 @@ Config Config::load(const std::string& env_path) {
     if (std::string guild = get(file_values, "DEV_GUILD_ID"); !guild.empty()) {
         config.dev_guild_id = std::stoull(guild);
     }
+    if (std::string dir = get(file_values, "DATA_DIR"); !dir.empty()) {
+        config.data_dir = dir;
+    }
     return config;
 }
 
