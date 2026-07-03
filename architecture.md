@@ -14,6 +14,7 @@ src/
     registry.hpp/.cpp CommandRegistry: bulk-registers commands with Discord, dispatches events
   commands/           One .cpp per command (feature modules)
     ping.cpp
+    coinflip.cpp
     all_commands.cpp  Explicit factory list of every command
 external/DPP          DPP pinned as git submodule
 CMakeLists.txt        Dual-mode build (see Build)
@@ -49,7 +50,8 @@ CMakeLists.txt        Dual-mode build (see Build)
 
 ## Build
 
-CMake ≥ 3.16, C++20. Two modes via `BB_BUILD_DPP` (default `OFF`):
+CMake ≥ 3.20, C++20. Build type defaults to Release on single-config generators.
+Two modes via `BB_BUILD_DPP` (default `OFF`):
 
 - **`-DBB_BUILD_DPP=ON`** — builds the DPP submodule and installs it to
   `external/DPP/install`. Use on first build or after bumping the submodule.
@@ -61,8 +63,8 @@ CMake ≥ 3.16, C++20. Two modes via `BB_BUILD_DPP` (default `OFF`):
   CMakeLists patches the include path onto `dpp::dpp` after `find_package`.
 
 Both modes link the same `dpp::dpp` target (ON mode aliases the in-tree target).
-On Windows, a post-build step copies runtime DLLs next to the executable
-(CMake ≥ 3.21).
+On Windows, post-build and install steps copy `dpp.dll` plus DPP's bundled deps
+(`external/DPP/win32/bin`: OpenSSL, zlib, opus) next to the executable.
 
 Typical flow:
 
