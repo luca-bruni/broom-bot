@@ -69,9 +69,12 @@ full cache that only updates on demand.
   defaults wide). Date defaults: all history.
 - Flow: **always dry-run first** — job counts matches, replies "N messages,
   ~T estimated — Confirm / Cancel" buttons; deletion only on confirm.
-- Where the cache covers the requested range, matches come from SQLite
-  (seconds); uncovered ranges are scanned live via REST. Purge does not require
-  a cache to exist.
+- Bulk commands take a `source` option controlling discovery only (deletion
+  speed is identical regardless — rate limits bind either way):
+  - `auto` (default): use cache where coverage exists, live-scan uncovered
+    ranges. Dry-run report states the source and cache age.
+  - `scan`: ignore the cache, always walk history fresh via REST.
+  Purge never requires a cache to exist.
 - Permission gating: `default_member_permissions` = Manage Messages (purge) /
   Manage Guild (cache); bot's own permissions checked per channel and reported.
 
