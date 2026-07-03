@@ -2,7 +2,7 @@
 
 Thanks for your interest in broom-bot! Keeping this intentionally short:
 
-1. **Read [architecture.md](architecture.md) first** — it explains the layout, the
+1. **Read [ARCHITECTURE.md](ARCHITECTURE.md) first** — it explains the layout, the
    command pattern, and the build system. Most questions are answered there.
 2. **Build and test locally** before opening a PR. See the [README](README.md) for
    build instructions; test against your own dev guild with `DEV_GUILD_ID` set.

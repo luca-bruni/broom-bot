@@ -5,7 +5,7 @@
 A general-purpose Discord bot in C++20, built on [D++ (DPP)](https://github.com/brainboxdotcc/DPP).
 Builds from source on macOS, Linux, and Windows — verified by CI on every push.
 
-See [architecture.md](architecture.md) for how the project is structured and how to
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how the project is structured and how to
 add commands.
 
 ## Requirements
