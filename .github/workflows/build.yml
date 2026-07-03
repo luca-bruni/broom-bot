@@ -47,15 +47,12 @@ jobs:
           path: external/DPP/install
           key: dpp-${{ runner.os }}-${{ runner.arch }}-img${{ steps.keys.outputs.image }}-${{ steps.keys.outputs.dpp_sha }}
 
-      # /MP enables file-level parallel compilation with MSVC. MSBuild's /m only
-      # parallelizes across projects, and DPP is one huge project — without /MP
-      # its ~140 sources compile serially (20+ min cold builds).
+      # Note: cold Windows DPP builds take ~18-20 min. That is the real cost of
+      # DPP's ~140 TUs under MSVC /O2 /GL on 4 cores — DPP already compiles
+      # with /MP, so there is no easy parallelism win here. Cold builds only
+      # happen on DPP bumps and runner image updates.
       - name: Configure (cache hit -> pre-built DPP, miss -> build DPP in-tree)
         shell: bash
-        env:
-          # -MP not /MP: this step runs under Git Bash, whose MSYS path
-          # conversion would mangle /MP into C:/Program Files/Git/MP.
-          CXXFLAGS: ${{ runner.os == 'Windows' && '-MP' || '' }}
         run: |
           if [[ "${{ steps.dpp-cache.outputs.cache-hit }}" == "true" ]]; then
             cmake -B build -DBB_BUILD_DPP=OFF
