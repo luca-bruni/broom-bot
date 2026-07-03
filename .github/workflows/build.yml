@@ -1,0 +1,80 @@
+name: build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev zlib1g-dev
+
+      # DPP is cached per pinned submodule commit: bumping the submodule changes
+      # the key and triggers exactly one rebuild per platform. ImageVersion is in
+      # the key because DPP's exported CMake config hardcodes absolute dependency
+      # paths from the machine that built it, which can shift across runner
+      # image updates.
+      - name: Compute cache key parts
+        id: keys
+        shell: bash
+        run: |
+          echo "dpp_sha=$(git rev-parse HEAD:external/DPP)" >> "$GITHUB_OUTPUT"
+          echo "image=${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache DPP install
+        id: dpp-cache
+        uses: actions/cache@v4
+        with:
+          path: external/DPP/install
+          key: dpp-${{ runner.os }}-${{ runner.arch }}-img${{ steps.keys.outputs.image }}-${{ steps.keys.outputs.dpp_sha }}
+
+      - name: Configure (cache hit -> pre-built DPP, miss -> build DPP in-tree)
+        shell: bash
+        run: |
+          if [[ "${{ steps.dpp-cache.outputs.cache-hit }}" == "true" ]]; then
+            cmake -B build -DBB_BUILD_DPP=OFF
+          else
+            cmake -B build -DBB_BUILD_DPP=ON
+          fi
+
+      # Bounded parallelism: bare --parallel means unlimited jobs for Makefiles,
+      # which OOMs the 16GB runners while compiling DPP.
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+
+      # The binary must start, resolve its shared libraries, and fail cleanly
+      # with a config error (no BOT_TOKEN in CI). Catches broken DLL/rpath
+      # setups that a successful link would hide.
+      - name: Smoke test
+        shell: bash
+        run: |
+          BIN=build/broom_bot
+          [[ "$RUNNER_OS" == "Windows" ]] && BIN=build/Release/broom_bot.exe
+          set +e
+          "$BIN" 2>err.txt
+          code=$?
+          set -e
+          cat err.txt
+          if [[ $code -ne 1 ]] || ! grep -q "BOT_TOKEN" err.txt; then
+            echo "Expected clean config-error exit (1), got $code"
+            exit 1
+          fi

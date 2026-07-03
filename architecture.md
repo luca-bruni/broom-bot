@@ -77,6 +77,16 @@ cmake --build build
 DPP's own dependencies (OpenSSL, zlib) must be available on the system; see DPP docs
 per platform.
 
+## CI
+
+`.github/workflows/build.yml` builds all three OSes (ubuntu/windows/macos) on every
+push and PR to master, then smoke-tests that the binary starts and exits cleanly on
+missing config. `external/DPP/install` is cached keyed on the pinned submodule SHA +
+runner image version: **bumping the DPP submodule automatically triggers one DPP
+rebuild per platform**, after which builds take ~1–2 min again. To bump DPP:
+`cd external/DPP && git fetch && git checkout <tag>`, then commit the gitlink; CI
+validates the bump across platforms before merge.
+
 ## Conventions
 
 - Explicit source lists in CMake (no globbing).
@@ -89,7 +99,6 @@ per platform.
 
 ## Status
 
-Structure implemented as described (branch `feat/modular-architecture`). Verified on
-macOS x86_64: both CMake modes configure, OFF mode builds, and `/ping` answered
-end-to-end against a live dev guild. Windows/Linux builds not yet exercised
-(no CI yet — GitHub Actions matrix build is the intended next infra step).
+Structure implemented and merged to master. Verified on macOS x86_64: both CMake
+modes configure and build, and `/ping` + `/coinflip` answered end-to-end against a
+live dev guild. Windows/Linux verified by the CI matrix on every PR.
