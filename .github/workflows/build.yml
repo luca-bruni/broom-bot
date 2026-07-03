@@ -53,7 +53,9 @@ jobs:
       - name: Configure (cache hit -> pre-built DPP, miss -> build DPP in-tree)
         shell: bash
         env:
-          CXXFLAGS: ${{ runner.os == 'Windows' && '/MP' || '' }}
+          # -MP not /MP: this step runs under Git Bash, whose MSYS path
+          # conversion would mangle /MP into C:/Program Files/Git/MP.
+          CXXFLAGS: ${{ runner.os == 'Windows' && '-MP' || '' }}
         run: |
           if [[ "${{ steps.dpp-cache.outputs.cache-hit }}" == "true" ]]; then
             cmake -B build -DBB_BUILD_DPP=OFF
