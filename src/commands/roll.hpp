@@ -4,12 +4,11 @@
 
 namespace broom::commands {
 
-class Coinflip : public Command {
+class Roll : public Command {
 public:
-    std::string name() const override { return "coinflip"; }
+    std::string name() const override { return "roll"; }
     dpp::slashcommand definition(dpp::snowflake app_id) const override;
     void handle(const dpp::slashcommand_t& event) const override;
-    void handle_button(const dpp::button_click_t& event) const override;
 };
 
 } // namespace broom::commands

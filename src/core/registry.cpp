@@ -19,6 +19,17 @@ void CommandRegistry::attach(dpp::cluster& bot, dpp::snowflake dev_guild_id) {
         it->second->handle(event);
     });
 
+    // custom_id convention: "<command>:<action>" — route to the owning command.
+    bot.on_button_click([this](const dpp::button_click_t& event) {
+        auto owner = event.custom_id.substr(0, event.custom_id.find(':'));
+        auto it = commands_.find(owner);
+        if (it == commands_.end()) {
+            event.owner->log(dpp::ll_warning, "Unrouted button: " + event.custom_id);
+            return;
+        }
+        it->second->handle_button(event);
+    });
+
     bot.on_ready([this, &bot, dev_guild_id](const dpp::ready_t&) {
         if (!dpp::run_once<struct register_commands>()) return;
 
