@@ -17,6 +17,10 @@ src/
     ping.cpp
     coinflip.cpp      Demonstrates buttons (handle_button + "Flip again")
     roll.cpp          Demonstrates command options (dice: NdM)
+    userinfo.cpp      Demonstrates user options, resolved members, embeds
+    serverinfo.cpp    Demonstrates guild cache lookups, embeds
+    avatar.cpp
+    choose.cpp
     all_commands.cpp  Explicit factory list of every command
 external/DPP          DPP pinned as git submodule
 CMakeLists.txt        Dual-mode build (see Build)

@@ -78,9 +78,13 @@ add_executable(broom_bot
     src/core/config.cpp
     src/core/registry.cpp
     src/commands/all_commands.cpp
-    src/commands/ping.cpp
+    src/commands/avatar.cpp
+    src/commands/choose.cpp
     src/commands/coinflip.cpp
+    src/commands/ping.cpp
     src/commands/roll.cpp
+    src/commands/serverinfo.cpp
+    src/commands/userinfo.cpp
 )
 target_include_directories(broom_bot PRIVATE src)
 target_link_libraries(broom_bot PRIVATE dpp::dpp)
