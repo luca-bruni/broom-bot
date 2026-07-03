@@ -1,10 +1,25 @@
 name: build
 
+# paths-ignore: skip CI for changes that cannot affect the build. Note: a PR
+# touching ONLY ignored paths leaves required checks "Expected" — merge those
+# with `gh pr merge --admin` (or push docs directly to master).
 on:
   push:
     branches: [master]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.env.sample'
+      - '.gitignore'
   pull_request:
     branches: [master]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.env.sample'
+      - '.gitignore'
   workflow_dispatch:
 
 concurrency:
