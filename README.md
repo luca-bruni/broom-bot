@@ -48,6 +48,10 @@ test server instantly instead of propagating globally (~1 h).
 | `/ping` | Ping pong! |
 | `/coinflip` | Flip a coin, with a "Flip again" button |
 | `/roll [dice]` | Roll dice, e.g. `/roll dice:2d6` |
+| `/choose options` | Pick one, e.g. `/choose options:pizza \| sushi` |
+| `/userinfo [user]` | Account + membership info |
+| `/serverinfo` | Server stats |
+| `/avatar [user]` | Full-size avatar |
 
 ## License
 
