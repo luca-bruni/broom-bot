@@ -56,8 +56,10 @@ jobs:
             cmake -B build -DBB_BUILD_DPP=ON
           fi
 
+      # Bounded parallelism: bare --parallel means unlimited jobs for Makefiles,
+      # which OOMs the 16GB runners while compiling DPP.
       - name: Build
-        run: cmake --build build --config Release --parallel
+        run: cmake --build build --config Release --parallel 4
 
       # The binary must start, resolve its shared libraries, and fail cleanly
       # with a config error (no BOT_TOKEN in CI). Catches broken DLL/rpath
