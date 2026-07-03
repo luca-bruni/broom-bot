@@ -67,6 +67,9 @@ external/**/install/
 !.vscode/launch.json
 !.vscode/c_cpp_properties.json
 
+# Claude Code local settings
+.claude/
+
 # Secrets
 .env
 .env.*

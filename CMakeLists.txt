@@ -7,9 +7,8 @@ set(BB_BUILD_TYPE "Release" CACHE STRING "broom_bot build type (single-config on
 set_property(CACHE BB_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
 
 if(NOT CMAKE_CONFIGURATION_TYPES)
-  # Force the actual CMake build type from our project default.
-  set(CMAKE_BUILD_TYPE "${BB_BUILD_TYPE}" CACHE STRING "Build type" FORCE)
-  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
+    set(CMAKE_BUILD_TYPE "${BB_BUILD_TYPE}" CACHE STRING "Build type" FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
@@ -17,79 +16,85 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Avoid admin-only default (Program Files) on Windows
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-  set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/install" CACHE PATH "" FORCE)
+    set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/install" CACHE PATH "" FORCE)
 endif()
 
-option(BB_BUILD_DPP "Build DPP submodule (in-tree). OFF uses external/DPP/install" OFF)
+# ON:  build the DPP submodule as part of this project and install it into
+#      external/DPP/install (use on first build, or after bumping the submodule).
+# OFF: link the pre-built DPP from external/DPP/install, or any prefix passed
+#      via -DCMAKE_PREFIX_PATH.
+option(BB_BUILD_DPP "Build the DPP submodule from source" OFF)
 
 set(DPP_SOURCE_DIR   "${CMAKE_SOURCE_DIR}/external/DPP")
-set(DPP_SUBBUILD_DIR "${CMAKE_BINARY_DIR}/external/DPP")
+set(DPP_SUBBUILD_DIR "${CMAKE_BINARY_DIR}/dpp")
 set(DPP_INSTALL_DIR  "${DPP_SOURCE_DIR}/install")
-set(DPP_DEPS_BIN_DIR "${DPP_SOURCE_DIR}/win32/bin") # where libssl/libcrypto/zlib1/opus live
+set(DPP_DEPS_BIN_DIR "${DPP_SOURCE_DIR}/win32/bin") # DPP's bundled libssl/libcrypto/zlib1/opus DLLs
 
-# Prefer repo-local DPP install when BB_BUILD_DPP=OFF
+# Prefer the repo-local DPP install when BB_BUILD_DPP=OFF
 list(PREPEND CMAKE_PREFIX_PATH "${DPP_INSTALL_DIR}")
 
 if(BB_BUILD_DPP)
-  if(NOT EXISTS "${DPP_SOURCE_DIR}/CMakeLists.txt")
-    message(FATAL_ERROR "DPP submodule not found. Run: git submodule update --init --recursive")
-  endif()
+    if(NOT EXISTS "${DPP_SOURCE_DIR}/CMakeLists.txt")
+        message(FATAL_ERROR
+            "DPP submodule not found. Run: git submodule update --init --recursive")
+    endif()
 
-  set(DPP_BUILD_TEST    OFF CACHE BOOL "" FORCE)
-  set(TESTING           OFF CACHE BOOL "" FORCE)
+    set(DPP_BUILD_TEST OFF CACHE BOOL "" FORCE)
+    set(DPP_INSTALL    ON  CACHE BOOL "" FORCE)
+    set(TESTING        OFF CACHE BOOL "" FORCE)
 
-  add_subdirectory("${DPP_SOURCE_DIR}" "${DPP_SUBBUILD_DIR}" EXCLUDE_FROM_ALL)
+    add_subdirectory("${DPP_SOURCE_DIR}" "${DPP_SUBBUILD_DIR}" EXCLUDE_FROM_ALL)
+    add_library(dpp::dpp ALIAS dpp)
+
+    # Populate external/DPP/install so later configures can use BB_BUILD_DPP=OFF.
+    add_custom_target(dpp_install ALL
+        COMMAND ${CMAKE_COMMAND} --install "${DPP_SUBBUILD_DIR}"
+                --prefix "${DPP_INSTALL_DIR}" --config $<CONFIG>
+        DEPENDS dpp
+        COMMENT "Installing DPP into ${DPP_INSTALL_DIR}")
 else()
-  find_package(dpp CONFIG REQUIRED)
+    find_package(dpp CONFIG REQUIRED)
+
+    # DPP's exported target omits its include directory; derive it from the
+    # package location (<prefix>/lib/cmake/dpp -> <prefix>/include).
+    get_filename_component(DPP_PREFIX "${dpp_DIR}/../../.." ABSOLUTE)
+    set_target_properties(dpp::dpp PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${DPP_PREFIX}/include")
 endif()
 
 add_executable(broom_bot
-  src/main.cpp
-  src/app/app.cpp
-  src/bot/commands.cpp
-  src/config/json_config.cpp
+    src/main.cpp
+    src/core/config.cpp
+    src/core/registry.cpp
+    src/commands/all_commands.cpp
+    src/commands/ping.cpp
+    src/commands/coinflip.cpp
 )
+target_include_directories(broom_bot PRIVATE src)
+target_link_libraries(broom_bot PRIVATE dpp::dpp)
 
-target_include_directories(broom_bot PRIVATE
-  ${CMAKE_SOURCE_DIR}/include
-)
-
-if(BB_BUILD_DPP)
-  target_link_libraries(broom_bot PRIVATE dpp)
-else()
-  target_link_libraries(broom_bot PRIVATE dpp::dpp)
-endif()
-
-# Make build-tree exe runnable on Windows: copy DPP + its packaged deps next to the exe
-add_custom_command(TARGET broom_bot POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${DPP_INSTALL_DIR}/bin/dpp.dll"
-            "$<TARGET_FILE_DIR:broom_bot>/"
-    COMMAND "${CMAKE_COMMAND}" -E copy_directory
-            "${DPP_DEPS_BIN_DIR}"
-            "$<TARGET_FILE_DIR:broom_bot>"
-    COMMENT "Copying DPP + runtime DLLs next to broom_bot.exe"
-    VERBATIM
-)
-
-# Make install-tree runnable too
 include(GNUInstallDirs)
 install(TARGETS broom_bot RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(FILES "${DPP_INSTALL_DIR}/bin/dpp.dll" DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(DIRECTORY "${DPP_DEPS_BIN_DIR}/" DESTINATION ${CMAKE_INSTALL_BINDIR}
-        FILES_MATCHING PATTERN "*.dll")
 
-# When building DPP in-tree, stage it into external/DPP/install during top-level install
-if(BB_BUILD_DPP)
-  add_custom_target(stage_dpp
-    COMMAND "${CMAKE_COMMAND}" --install "${DPP_SUBBUILD_DIR}" --prefix "${DPP_INSTALL_DIR}"
-    COMMENT "Staging DPP into ${DPP_INSTALL_DIR}"
-  )
+# Make the exe runnable on Windows: copy dpp.dll + DPP's packaged deps next to it,
+# in both the build tree and the install tree.
+if(WIN32)
+    if(BB_BUILD_DPP)
+        # Ensure dpp.dll is staged into DPP_INSTALL_DIR before the copy below runs.
+        add_dependencies(broom_bot dpp_install)
+    endif()
 
-  install(CODE
-    "execute_process(
-       COMMAND \"${CMAKE_COMMAND}\" --install \"${DPP_SUBBUILD_DIR}\" --prefix \"${DPP_INSTALL_DIR}\"
-       COMMAND_ERROR_IS_FATAL ANY
-     )"
-  )
+    add_custom_command(TARGET broom_bot POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "${DPP_INSTALL_DIR}/bin/dpp.dll"
+                "$<TARGET_FILE_DIR:broom_bot>/"
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory
+                "${DPP_DEPS_BIN_DIR}"
+                "$<TARGET_FILE_DIR:broom_bot>"
+        COMMENT "Copying DPP + runtime DLLs next to broom_bot.exe"
+        VERBATIM)
+
+    install(FILES "${DPP_INSTALL_DIR}/bin/dpp.dll" DESTINATION ${CMAKE_INSTALL_BINDIR})
+    install(DIRECTORY "${DPP_DEPS_BIN_DIR}/" DESTINATION ${CMAKE_INSTALL_BINDIR}
+            FILES_MATCHING PATTERN "*.dll")
 endif()
