@@ -46,7 +46,8 @@ test server instantly instead of propagating globally (~1 h).
 | Command | Description |
 |---|---|
 | `/ping` | Ping pong! |
-| `/coinflip` | Flip a coin |
+| `/coinflip` | Flip a coin, with a "Flip again" button |
+| `/roll [dice]` | Roll dice, e.g. `/roll dice:2d6` |
 
 ## License
 

@@ -80,6 +80,7 @@ add_executable(broom_bot
     src/commands/all_commands.cpp
     src/commands/ping.cpp
     src/commands/coinflip.cpp
+    src/commands/roll.cpp
 )
 target_include_directories(broom_bot PRIVATE src)
 target_link_libraries(broom_bot PRIVATE dpp::dpp)

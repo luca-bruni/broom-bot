@@ -12,9 +12,11 @@ src/
     config.hpp/.cpp   .env + environment config loading
     command.hpp       Command interface
     registry.hpp/.cpp CommandRegistry: bulk-registers commands with Discord, dispatches events
+    rng.hpp           Shared thread-safe RNG helper
   commands/           One .cpp per command (feature modules)
     ping.cpp
-    coinflip.cpp
+    coinflip.cpp      Demonstrates buttons (handle_button + "Flip again")
+    roll.cpp          Demonstrates command options (dice: NdM)
     all_commands.cpp  Explicit factory list of every command
 external/DPP          DPP pinned as git submodule
 CMakeLists.txt        Dual-mode build (see Build)
@@ -24,8 +26,16 @@ CMakeLists.txt        Dual-mode build (see Build)
 ## Command system
 
 - `Command` is an interface: `std::string name()`,
-  `dpp::slashcommand definition(dpp::snowflake app_id)`, and
-  `void handle(const dpp::slashcommand_t& event)`.
+  `dpp::slashcommand definition(dpp::snowflake app_id)`,
+  `void handle(const dpp::slashcommand_t& event)`, and optional
+  `void handle_button(const dpp::button_click_t& event)`.
+- Command options are declared in `definition()` (`.add_option(...)`) and read in
+  `handle()` via `event.get_parameter("name")` (a variant; check with
+  `std::holds_alternative`). See `commands/roll.cpp`.
+- **Component custom_id convention**: `"<command-name>:<action>"`. The registry
+  routes `on_button_click` to the command whose `name()` matches the prefix before
+  `:`; the command inspects the rest. Buttons must follow this convention or they
+  will not be routed. See `commands/coinflip.cpp`.
 - `commands/all_commands.cpp` returns an explicit `std::vector<std::unique_ptr<Command>>`.
   **Deliberately not static self-registration**: static registrar objects are dead-stripped
   by MSVC and have fragile init order; an explicit list is deterministic and cross-platform.
