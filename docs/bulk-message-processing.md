@@ -30,21 +30,37 @@ No automatic indexing on guild join. Admins run an explicit command:
 - `/cache build [scope] [channel] [from] [to]` — index message metadata+content
   into SQLite. `scope`: `guild` (default) or `channel` (with `channel` option).
   `from`/`to`: ISO dates (YYYY-MM-DD); defaults: beginning of history → now.
+- `/cache update [channel]` — forward-fill each covered channel from its newest
+  cached message to now (manual catch-up; no new ranges).
 - `/cache status` — coverage (per-channel indexed ranges, row counts, freshness).
 - `/cache clear [channel]` — drop cached data (whole guild if no channel).
 
-Live ingest (`on_message_create/delete/update`) updates the cache **only for
-channels already covered by an explicit build** — opt-in is respected at event
-time too.
+## Settings: freshness policy is per-guild, stored in the same DB
 
-## Offline gaps
+`guild_settings` table (SQLite — the DB is the per-guild settings store; `.env`
+is process config only). Cache **coverage** (what was indexed) and **freshness
+policy** (how it stays current) are deliberately decoupled — a guild can have a
+full cache that only updates on demand.
 
-- Messages **sent** while the bot was offline: recovered on startup by forward
-  pagination (`after=<newest cached id>`) per covered channel ("gap backfill").
+`/cache settings ingest:<manual|live>`:
+
+- **`manual` (default)** — cache changes only via `/cache build` / `/cache
+  update`. Pure REST: the bot needs **no privileged intent** in this mode.
+- **`live`** — gateway ingest (`message_create/delete/update`) for covered
+  channels + automatic gap backfill on startup. Requires the privileged Message
+  Content intent (Developer Portal toggle; Discord approval needed at 75+
+  guilds — another reason manual is the default).
+
+## Offline gaps (live mode) / staleness (manual mode)
+
+- Messages **sent** while offline (live mode): recovered on startup by forward
+  pagination (`after=<newest cached id>`) per covered channel. In manual mode
+  the same mechanism runs only via `/cache update`.
 - Messages **deleted** while offline: self-healed lazily — a delete-by-id that
   404s removes the stale row.
-- Messages **edited** while offline: **known limitation, accepted.** The cache
-  may hold pre-edit content until a channel is re-built (`/cache build`).
+- Messages **edited** while the bot was offline (or any time, in manual mode):
+  **known limitation, accepted.** The cache may hold pre-edit content until the
+  range is re-built (`/cache build`).
 
 ## Bulk commands
 
@@ -72,8 +88,8 @@ time too.
 ## Schema sketch
 
 ```
-guilds(id, ...)
-coverage(channel_id, guild_id, from_id, to_id)      -- indexed ranges
+guild_settings(guild_id PK, ingest_mode, ...)       -- per-guild policy
+coverage(channel_id, guild_id, from_id, to_id)      -- indexed ranges (fact)
 messages(id, channel_id, guild_id, author_id, created_at, content)
 jobs(id, guild_id, kind, params_json, status, created_at, finished_at)
 job_cursors(job_id, channel_id, cursor_id, scanned, matched, deleted)
@@ -81,11 +97,17 @@ job_cursors(job_id, channel_id, cursor_id, scanned, matched, deleted)
 
 ## Implementation sequence (one PR each)
 
+Note: the headline use case (one-time keyword purge over full history) requires
+no cache — purge is scan-and-delete either way. The cache only accelerates
+*repeated* sweeps, so it lands last and can be re-scoped once purge is in use.
+SQLite is justified by PR 1 alone (resumable cursors must survive restarts).
+
 1. **core/jobs + SQLite** — job runner, persistence, progress/cancel plumbing.
-2. **/purge (channel scope, live scan)** — end-to-end vertical slice: dry-run,
-   confirm, bulk-delete fast path, old-message slow path, progress, resume.
-3. **/cache + guild-scope purge** — index build/status/clear, live ingest,
-   gap backfill, cache-accelerated purge.
+2. **/purge (channel + guild scope, live scan)** — end-to-end vertical slice:
+   dry-run, confirm, bulk-delete fast path, old-message slow path, progress,
+   resume.
+3. **/cache + cache-accelerated purge** — build/update/status/clear/settings,
+   manual vs live ingest modes, gap backfill.
 
 ## Dependency note
 
