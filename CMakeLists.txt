@@ -56,10 +56,21 @@ else()
     find_package(dpp CONFIG REQUIRED)
 
     # DPP's exported target omits its include directory; derive it from the
-    # package location (<prefix>/lib/cmake/dpp -> <prefix>/include).
+    # package location (<prefix>/lib/cmake/dpp -> <prefix>/include). On Windows
+    # DPP installs headers into a versioned subdir (include/dpp-X.Y).
     get_filename_component(DPP_PREFIX "${dpp_DIR}/../../.." ABSOLUTE)
+    if(EXISTS "${DPP_PREFIX}/include/dpp/dpp.h")
+        set(DPP_INCLUDE_DIR "${DPP_PREFIX}/include")
+    else()
+        file(GLOB DPP_VERSIONED_INCLUDES "${DPP_PREFIX}/include/dpp-*")
+        list(LENGTH DPP_VERSIONED_INCLUDES DPP_VERSIONED_COUNT)
+        if(DPP_VERSIONED_COUNT EQUAL 0)
+            message(FATAL_ERROR "Could not locate dpp/dpp.h under ${DPP_PREFIX}/include")
+        endif()
+        list(GET DPP_VERSIONED_INCLUDES 0 DPP_INCLUDE_DIR)
+    endif()
     set_target_properties(dpp::dpp PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${DPP_PREFIX}/include")
+        INTERFACE_INCLUDE_DIRECTORIES "${DPP_INCLUDE_DIR}")
 endif()
 
 add_executable(broom_bot

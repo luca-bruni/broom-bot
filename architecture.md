@@ -60,7 +60,8 @@ Two modes via `BB_BUILD_DPP` (default `OFF`):
   `find_package(dpp CONFIG)` (DPP installs a CMake package config). An external DPP
   install can be substituted with `-DCMAKE_PREFIX_PATH=...`.
   **Quirk**: DPP's exported target omits `INTERFACE_INCLUDE_DIRECTORIES`; our
-  CMakeLists patches the include path onto `dpp::dpp` after `find_package`.
+  CMakeLists patches the include path onto `dpp::dpp` after `find_package`
+  (handling Windows's versioned `include/dpp-X.Y` header layout).
 
 Both modes link the same `dpp::dpp` target (ON mode aliases the in-tree target).
 On Windows, post-build and install steps copy `dpp.dll` plus DPP's bundled deps
