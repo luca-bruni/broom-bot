@@ -8,6 +8,7 @@ namespace broom {
 struct Config {
     std::string bot_token;
     dpp::snowflake dev_guild_id{0}; // 0 = register commands globally
+    std::string data_dir{"data"};   // SQLite database location
 
     // Reads KEY=VALUE pairs from env_path (a missing file is fine), then
     // overlays real environment variables (environment wins).

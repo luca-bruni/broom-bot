@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(broom_bot LANGUAGES CXX)
+project(broom_bot LANGUAGES C CXX)
 
 # Single-config generators (Ninja): Microsoft CMake defaults CMAKE_BUILD_TYPE to Debug.
 # We want Release by default without requiring -DCMAKE_BUILD_TYPE=Release.
@@ -73,9 +73,18 @@ else()
         INTERFACE_INCLUDE_DIRECTORIES "${DPP_INCLUDE_DIR}")
 endif()
 
+# Vendored SQLite amalgamation (see ARCHITECTURE.md; not a submodule)
+add_library(sqlite3 STATIC external/sqlite/sqlite3.c)
+target_include_directories(sqlite3 PUBLIC external/sqlite)
+target_compile_definitions(sqlite3 PRIVATE SQLITE_OMIT_LOAD_EXTENSION=1)
+find_package(Threads REQUIRED)
+target_link_libraries(sqlite3 PRIVATE Threads::Threads)
+
 add_executable(broom_bot
     src/main.cpp
     src/core/config.cpp
+    src/core/db.cpp
+    src/core/jobs.cpp
     src/core/registry.cpp
     src/commands/all_commands.cpp
     src/commands/avatar.cpp
@@ -87,7 +96,7 @@ add_executable(broom_bot
     src/commands/userinfo.cpp
 )
 target_include_directories(broom_bot PRIVATE src)
-target_link_libraries(broom_bot PRIVATE dpp::dpp)
+target_link_libraries(broom_bot PRIVATE dpp::dpp sqlite3)
 
 include(GNUInstallDirs)
 install(TARGETS broom_bot RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

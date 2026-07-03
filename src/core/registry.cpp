@@ -24,7 +24,9 @@ void CommandRegistry::attach(dpp::cluster& bot, dpp::snowflake dev_guild_id) {
         auto owner = event.custom_id.substr(0, event.custom_id.find(':'));
         auto it = commands_.find(owner);
         if (it == commands_.end()) {
-            event.owner->log(dpp::ll_warning, "Unrouted button: " + event.custom_id);
+            // Not ours — other subsystems (e.g. JobRunner) attach their own
+            // button handlers on this event.
+            event.owner->log(dpp::ll_debug, "Button not command-routed: " + event.custom_id);
             return;
         }
         it->second->handle_button(event);
