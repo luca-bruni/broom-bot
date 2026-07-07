@@ -52,6 +52,7 @@ test server instantly instead of propagating globally (~1 h).
 | `/userinfo [user]` | Account + membership info |
 | `/serverinfo` | Server stats |
 | `/avatar [user]` | Full-size avatar |
+| `/purge channel\|guild keywords:… [from] [to]` | Bulk-delete matching messages (dry-run → confirm). Requires Manage Messages |
 
 ## License
 
