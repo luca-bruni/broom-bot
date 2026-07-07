@@ -264,17 +264,25 @@ void JobRunner::finish(std::int64_t job_id, const std::string& status,
         .bind(4, job_id)
         .step();
 
+    // The progress message is created asynchronously; a fast job can reach here
+    // before its id is stored, which would skip the final edit and leave the
+    // Cancel button on-screen. Wait briefly for the id to land.
+    for (int i = 0; i < 20; ++i) {
+        auto stmt = db_.prepare("SELECT progress_message FROM jobs WHERE id=?1");
+        stmt.bind(1, job_id);
+        if (stmt.step() && !stmt.column_is_null(0)) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
     std::int64_t scanned = 0, matched = 0, actioned = 0;
-    dpp::snowflake channel_id;
     {
-        auto stmt = db_.prepare(
-            "SELECT scanned, matched, actioned, progress_channel FROM jobs WHERE id=?1");
+        auto stmt =
+            db_.prepare("SELECT scanned, matched, actioned FROM jobs WHERE id=?1");
         stmt.bind(1, job_id);
         if (stmt.step()) {
             scanned = stmt.column_int(0);
             matched = stmt.column_int(1);
             actioned = stmt.column_int(2);
-            channel_id = static_cast<std::uint64_t>(stmt.column_int(3));
         }
     }
 
@@ -285,9 +293,8 @@ void JobRunner::finish(std::int64_t job_id, const std::string& status,
         " | Matched: " + std::to_string(matched) +
         " | Actioned: " + std::to_string(actioned);
 
+    // Update the existing progress message in place (no duplicate post).
     edit_progress_message(job_id, summary, true);
-    // Separate completion message so watchers get a notification.
-    bot_.message_create(dpp::message(channel_id, summary));
 }
 
 void JobRunner::edit_progress_message(std::int64_t job_id, const std::string& text,

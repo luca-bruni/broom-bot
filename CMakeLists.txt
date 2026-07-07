@@ -91,6 +91,7 @@ add_executable(broom_bot
     src/commands/choose.cpp
     src/commands/coinflip.cpp
     src/commands/ping.cpp
+    src/commands/purge.cpp
     src/commands/roll.cpp
     src/commands/serverinfo.cpp
     src/commands/userinfo.cpp

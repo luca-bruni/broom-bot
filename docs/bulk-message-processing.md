@@ -1,7 +1,13 @@
 # Design: Message Cache & Bulk Operations
 
-Status: agreed design, implementation in progress. See ARCHITECTURE.md for the
-command framework this builds on.
+Status: PR 1 (job system) and PR 2 (`/purge`) merged; PR 3 (cache) pending. See
+ARCHITECTURE.md for the command framework this builds on.
+
+Implemented in PR 2: `/purge channel|guild` with keywords + date ranges,
+dry-run → Confirm/Cancel, bulk-delete fast path, old-message slow path,
+per-channel cursor resume. Known v1 limitations: scanning is sequential (no
+cross-channel parallelism yet); archived threads are not enumerated; the
+`source` option is deferred to PR 3 (no cache exists yet).
 
 ## Goals
 
