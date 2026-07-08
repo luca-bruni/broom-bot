@@ -45,4 +45,19 @@ inline std::string human_duration(std::int64_t seconds) {
            std::to_string((seconds % 3600) / 60) + "m";
 }
 
+// "2d 3h 4m 5s" — full precision uptime, omitting leading zero units.
+inline std::string format_uptime(std::int64_t seconds) {
+    if (seconds < 0) seconds = 0;
+    std::int64_t d = seconds / 86400;
+    std::int64_t h = (seconds % 86400) / 3600;
+    std::int64_t m = (seconds % 3600) / 60;
+    std::int64_t s = seconds % 60;
+    std::string out;
+    if (d) out += std::to_string(d) + "d ";
+    if (d || h) out += std::to_string(h) + "h ";
+    if (d || h || m) out += std::to_string(m) + "m ";
+    out += std::to_string(s) + "s";
+    return out;
+}
+
 } // namespace broom

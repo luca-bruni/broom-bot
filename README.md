@@ -47,7 +47,10 @@ test server instantly instead of propagating globally (~1 h).
 
 | Command | Description |
 |---|---|
-| `/ping` | Ping pong! |
+| `/help` | List every command |
+| `/about` | Version, library, uptime, source |
+| `/stats` | Server/command counts, latency, uptime |
+| `/ping` | Pong + REST latency |
 | `/coinflip` | Flip a coin, with a "Flip again" button |
 | `/roll [dice]` | Roll dice, e.g. `/roll dice:2d6` |
 | `/choose options` | Pick one, e.g. `/choose options:pizza \| sushi` |
