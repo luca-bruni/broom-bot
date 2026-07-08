@@ -80,6 +80,14 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel 4
 
+      # Unit tests (doctest). Non-zero exit fails the job → merge gate.
+      - name: Unit tests
+        shell: bash
+        run: |
+          BIN=build/broom_tests
+          [[ "$RUNNER_OS" == "Windows" ]] && BIN=build/Release/broom_tests.exe
+          "$BIN"
+
       # The binary must start, resolve its shared libraries, and fail cleanly
       # with a config error (no BOT_TOKEN in CI). Catches broken DLL/rpath
       # setups that a successful link would hide.

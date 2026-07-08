@@ -125,3 +125,19 @@ if(WIN32)
     install(DIRECTORY "${DPP_DEPS_BIN_DIR}/" DESTINATION ${CMAKE_INSTALL_BINDIR}
             FILES_MATCHING PATTERN "*.dll")
 endif()
+
+# Unit tests (vendored doctest, header-only). Cover the pure logic — parsers and
+# filter predicates — that runs without a live Discord connection. New commands
+# should extend these. Toggle off with -DBB_BUILD_TESTS=OFF.
+option(BB_BUILD_TESTS "Build unit tests" ON)
+if(BB_BUILD_TESTS)
+    enable_testing()
+    add_executable(broom_tests
+        tests/doctest_main.cpp
+        tests/test_duration.cpp
+        tests/test_timeparse.cpp
+        tests/test_purge_filter.cpp
+    )
+    target_include_directories(broom_tests PRIVATE src external/doctest)
+    add_test(NAME broom_tests COMMAND broom_tests)
+endif()

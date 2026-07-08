@@ -1,18 +1,18 @@
 #include "commands/purge.hpp"
 
+#include "commands/purge_filter.hpp"
 #include "core/db.hpp"
 #include "core/duration.hpp"
 #include "core/jobs.hpp"
+#include "core/timeparse.hpp"
 
 #include <dpp/dpp.h>
 #include <dpp/nlohmann/json.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
-#include <cstdio>
 #include <ctime>
 #include <future>
 #include <memory>
@@ -21,40 +21,13 @@
 #include <string>
 #include <vector>
 
-#ifdef _WIN32
-#define timegm _mkgmtime
-#endif
-
 namespace broom::commands {
 
 namespace {
 
-constexpr std::uint64_t kDiscordEpochMs = 1420070400000ULL;
 constexpr std::int64_t kBulkDeletableMs = 14LL * 24 * 60 * 60 * 1000; // <14 days
 // Cursor sentinel meaning "channel fully scanned"; a real message id is never 1.
 constexpr std::uint64_t kChannelDone = 1;
-
-std::uint64_t ms_to_snowflake(std::uint64_t ms) {
-    return ms <= kDiscordEpochMs ? 0 : ((ms - kDiscordEpochMs) << 22);
-}
-
-// Parses YYYY-MM-DD as UTC. end_of_day pushes to 23:59:59.999.
-bool parse_date_ms(const std::string& s, bool end_of_day, std::uint64_t& out_ms) {
-    int y = 0, m = 0, d = 0;
-    if (std::sscanf(s.c_str(), "%d-%d-%d", &y, &m, &d) != 3) return false;
-    if (m < 1 || m > 12 || d < 1 || d > 31) return false;
-    std::tm tm{};
-    tm.tm_year = y - 1900;
-    tm.tm_mon = m - 1;
-    tm.tm_mday = d;
-    tm.tm_hour = end_of_day ? 23 : 0;
-    tm.tm_min = end_of_day ? 59 : 0;
-    tm.tm_sec = end_of_day ? 59 : 0;
-    std::time_t t = timegm(&tm);
-    if (t == static_cast<std::time_t>(-1)) return false;
-    out_ms = static_cast<std::uint64_t>(t) * 1000 + (end_of_day ? 999 : 0);
-    return true;
-}
 
 std::int64_t now_ms() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -62,57 +35,9 @@ std::int64_t now_ms() {
         .count();
 }
 
-std::string to_lower(std::string s) {
-    for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    return s;
-}
-
-std::vector<std::string> parse_keywords(const std::string& raw) {
-    std::vector<std::string> out;
-    std::size_t start = 0;
-    while (start <= raw.size()) {
-        auto comma = raw.find(',', start);
-        auto end = comma == std::string::npos ? raw.size() : comma;
-        std::string token = raw.substr(start, end - start);
-        auto first = token.find_first_not_of(" \t");
-        auto last = token.find_last_not_of(" \t");
-        if (first != std::string::npos) out.push_back(to_lower(token.substr(first, last - first + 1)));
-        if (comma == std::string::npos) break;
-        start = comma + 1;
-    }
-    return out;
-}
-
-bool keyword_match(const std::string& content, const std::vector<std::string>& keywords) {
-    std::string lc = to_lower(content);
-    for (const auto& k : keywords) {
-        if (!k.empty() && lc.find(k) != std::string::npos) return true;
-    }
-    return false;
-}
-
-bool has_link(const std::string& content) {
-    return content.find("http://") != std::string::npos ||
-           content.find("https://") != std::string::npos;
-}
-
-std::string human_duration(std::int64_t seconds) {
-    if (seconds < 60) return "~" + std::to_string(seconds) + "s";
-    if (seconds < 3600) return "~" + std::to_string(seconds / 60) + "m";
-    return "~" + std::to_string(seconds / 3600) + "h " + std::to_string((seconds % 3600) / 60) + "m";
-}
-
-struct PurgeParams {
-    std::string scope; // "channel" | "guild"
-    std::vector<std::string> keywords;
-    std::string pattern;          // regex (ECMAScript, case-insensitive); empty = none
-    std::uint64_t author_id = 0;  // only this author; 0 = any
-    std::string has;              // "", "attachment", "link", or "embed"
-    bool bots_only = false;
-    std::uint64_t channel_id = 0; // channel scope target; 0 for guild
-    std::uint64_t from_id = 0;     // lower snowflake bound (0 = none)
-    std::uint64_t to_id = 0;       // upper snowflake bound (0 = latest)
-};
+// Pure filter logic (PurgeParams, MessageView, message_matches, keyword/date
+// helpers) lives in commands/purge_filter.hpp and core/timeparse.hpp so it can
+// be unit-tested without a live Discord connection.
 
 std::string encode_params(const PurgeParams& p) {
     nlohmann::json j;
@@ -143,29 +68,9 @@ PurgeParams decode_params(const std::string& s) {
     return p;
 }
 
-// A message matches when it passes every provided filter. The keyword/pattern
-// content filter is an OR of the two; other filters are AND-combined. `re` is
-// the compiled pattern (nullptr when no pattern was given).
-bool message_matches(const dpp::message& m, const PurgeParams& p, const std::regex* re) {
-    if (p.author_id && static_cast<std::uint64_t>(m.author.id) != p.author_id) return false;
-    if (p.bots_only && !m.author.is_bot()) return false;
-    if (p.has == "attachment" && m.attachments.empty()) return false;
-    if (p.has == "link" && !has_link(m.content)) return false;
-    if (p.has == "embed" && m.embeds.empty()) return false;
-
-    const bool have_content_filter = !p.keywords.empty() || re != nullptr;
-    if (have_content_filter) {
-        bool ok = keyword_match(m.content, p.keywords);
-        if (!ok && re) {
-            try {
-                ok = std::regex_search(m.content, *re);
-            } catch (const std::regex_error&) {
-                ok = false;
-            }
-        }
-        if (!ok) return false;
-    }
-    return true;
+MessageView to_view(const dpp::message& m) {
+    return MessageView{m.content, static_cast<std::uint64_t>(m.author.id), m.author.is_bot(),
+                       !m.attachments.empty(), !m.embeds.empty()};
 }
 
 // --- Blocking REST wrappers (worker thread) --------------------------------
@@ -320,7 +225,7 @@ void run_purge_scan(JobContext& ctx) {
                 }
                 ++scanned;
                 oldest = mid;
-                if (message_matches(m, p, re ? &*re : nullptr)) {
+                if (message_matches(to_view(m), p, re ? &*re : nullptr)) {
                     auto created_ms =
                         static_cast<std::int64_t>(m.id.get_creation_time() * 1000.0);
                     ctx.db
