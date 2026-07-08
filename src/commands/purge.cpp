@@ -1,6 +1,7 @@
 #include "commands/purge.hpp"
 
 #include "core/db.hpp"
+#include "core/duration.hpp"
 #include "core/jobs.hpp"
 
 #include <dpp/dpp.h>
@@ -16,6 +17,7 @@
 #include <future>
 #include <memory>
 #include <optional>
+#include <regex>
 #include <string>
 #include <vector>
 
@@ -81,12 +83,17 @@ std::vector<std::string> parse_keywords(const std::string& raw) {
     return out;
 }
 
-bool content_matches(const std::string& content, const std::vector<std::string>& keywords) {
+bool keyword_match(const std::string& content, const std::vector<std::string>& keywords) {
     std::string lc = to_lower(content);
     for (const auto& k : keywords) {
         if (!k.empty() && lc.find(k) != std::string::npos) return true;
     }
     return false;
+}
+
+bool has_link(const std::string& content) {
+    return content.find("http://") != std::string::npos ||
+           content.find("https://") != std::string::npos;
 }
 
 std::string human_duration(std::int64_t seconds) {
@@ -98,6 +105,10 @@ std::string human_duration(std::int64_t seconds) {
 struct PurgeParams {
     std::string scope; // "channel" | "guild"
     std::vector<std::string> keywords;
+    std::string pattern;          // regex (ECMAScript, case-insensitive); empty = none
+    std::uint64_t author_id = 0;  // only this author; 0 = any
+    std::string has;              // "", "attachment", "link", or "embed"
+    bool bots_only = false;
     std::uint64_t channel_id = 0; // channel scope target; 0 for guild
     std::uint64_t from_id = 0;     // lower snowflake bound (0 = none)
     std::uint64_t to_id = 0;       // upper snowflake bound (0 = latest)
@@ -107,6 +118,10 @@ std::string encode_params(const PurgeParams& p) {
     nlohmann::json j;
     j["scope"] = p.scope;
     j["keywords"] = p.keywords;
+    j["pattern"] = p.pattern;
+    j["author_id"] = p.author_id;
+    j["has"] = p.has;
+    j["bots_only"] = p.bots_only;
     j["channel_id"] = p.channel_id;
     j["from_id"] = p.from_id;
     j["to_id"] = p.to_id;
@@ -118,10 +133,39 @@ PurgeParams decode_params(const std::string& s) {
     PurgeParams p;
     p.scope = j.at("scope").get<std::string>();
     p.keywords = j.at("keywords").get<std::vector<std::string>>();
+    p.pattern = j.value("pattern", std::string{});
+    p.author_id = j.value("author_id", std::uint64_t{0});
+    p.has = j.value("has", std::string{});
+    p.bots_only = j.value("bots_only", false);
     p.channel_id = j.value("channel_id", std::uint64_t{0});
     p.from_id = j.value("from_id", std::uint64_t{0});
     p.to_id = j.value("to_id", std::uint64_t{0});
     return p;
+}
+
+// A message matches when it passes every provided filter. The keyword/pattern
+// content filter is an OR of the two; other filters are AND-combined. `re` is
+// the compiled pattern (nullptr when no pattern was given).
+bool message_matches(const dpp::message& m, const PurgeParams& p, const std::regex* re) {
+    if (p.author_id && static_cast<std::uint64_t>(m.author.id) != p.author_id) return false;
+    if (p.bots_only && !m.author.is_bot()) return false;
+    if (p.has == "attachment" && m.attachments.empty()) return false;
+    if (p.has == "link" && !has_link(m.content)) return false;
+    if (p.has == "embed" && m.embeds.empty()) return false;
+
+    const bool have_content_filter = !p.keywords.empty() || re != nullptr;
+    if (have_content_filter) {
+        bool ok = keyword_match(m.content, p.keywords);
+        if (!ok && re) {
+            try {
+                ok = std::regex_search(m.content, *re);
+            } catch (const std::regex_error&) {
+                ok = false;
+            }
+        }
+        if (!ok) return false;
+    }
+    return true;
 }
 
 // --- Blocking REST wrappers (worker thread) --------------------------------
@@ -228,6 +272,11 @@ std::uint64_t progress_channel_of(JobContext& ctx) {
 void run_purge_scan(JobContext& ctx) {
     PurgeParams p = decode_params(ctx.params);
 
+    std::optional<std::regex> re;
+    if (!p.pattern.empty()) {
+        re.emplace(p.pattern, std::regex::ECMAScript | std::regex::icase);
+    }
+
     std::vector<dpp::snowflake> channels;
     if (p.scope == "channel") {
         channels.push_back(dpp::snowflake(p.channel_id));
@@ -271,17 +320,19 @@ void run_purge_scan(JobContext& ctx) {
                 }
                 ++scanned;
                 oldest = mid;
-                if (content_matches(m.content, p.keywords)) {
+                if (message_matches(m, p, re ? &*re : nullptr)) {
                     auto created_ms =
                         static_cast<std::int64_t>(m.id.get_creation_time() * 1000.0);
                     ctx.db
                         .prepare("INSERT OR IGNORE INTO purge_matches"
-                                 "(scan_job_id, channel_id, message_id, created_at, deleted) "
-                                 "VALUES(?1,?2,?3,?4,0)")
+                                 "(scan_job_id, channel_id, message_id, created_at, deleted, "
+                                 "author_id, content) VALUES(?1,?2,?3,?4,0,?5,?6)")
                         .bind(1, ctx.job_id)
                         .bind(2, static_cast<std::int64_t>(static_cast<std::uint64_t>(channel)))
                         .bind(3, static_cast<std::int64_t>(mid))
                         .bind(4, created_ms)
+                        .bind(5, static_cast<std::int64_t>(static_cast<std::uint64_t>(m.author.id)))
+                        .bind(6, m.content)
                         .step();
                     ++matched;
                 }
@@ -322,7 +373,7 @@ void run_purge_scan(JobContext& ctx) {
     }
     std::int64_t est = static_cast<std::int64_t>(std::ceil(recent / 100.0)) + old;
 
-    std::string range = (p.from_id || p.to_id) ? " in the given date range" : "";
+    std::string range = (p.from_id || p.to_id) ? " in the given range" : "";
     std::string skipped = inaccessible > 0
                               ? "\n⚠️ " + std::to_string(inaccessible) +
                                     " channel(s) skipped (missing permissions)."
@@ -339,6 +390,11 @@ void run_purge_scan(JobContext& ctx) {
                                                 .set_label("Confirm delete")
                                                 .set_style(dpp::cos_danger)
                                                 .set_id("purge:confirm:" + std::to_string(ctx.job_id)))
+                             .add_component(dpp::component()
+                                                .set_type(dpp::cot_button)
+                                                .set_label("Export")
+                                                .set_style(dpp::cos_primary)
+                                                .set_id("purge:export:" + std::to_string(ctx.job_id)))
                              .add_component(dpp::component()
                                                 .set_type(dpp::cot_button)
                                                 .set_label("Cancel")
@@ -438,26 +494,41 @@ void run_purge_delete(JobContext& ctx) {
 } // namespace
 
 dpp::slashcommand Purge::definition(dpp::snowflake app_id) const {
-    dpp::slashcommand sc(name(), "Bulk-delete messages matching keywords", app_id);
+    dpp::slashcommand sc(name(),
+                         "Bulk-delete messages by keyword, author, pattern, age, and more",
+                         app_id);
     sc.set_default_permissions(dpp::p_manage_messages);
 
+    // Filters shared by both subcommands. All optional; at least one required.
+    auto add_filters = [](dpp::command_option& o) {
+        o.add_option(dpp::command_option(dpp::co_string, "keywords",
+                                         "Comma-separated keywords to match", false));
+        o.add_option(dpp::command_option(dpp::co_user, "author",
+                                         "Only messages from this user", false));
+        o.add_option(dpp::command_option(dpp::co_string, "pattern",
+                                         "Regex the content must match", false));
+        dpp::command_option has(dpp::co_string, "has", "Only messages containing…", false);
+        has.add_choice(dpp::command_option_choice("attachment", std::string("attachment")));
+        has.add_choice(dpp::command_option_choice("link", std::string("link")));
+        has.add_choice(dpp::command_option_choice("embed", std::string("embed")));
+        o.add_option(has);
+        o.add_option(dpp::command_option(dpp::co_boolean, "bots_only",
+                                         "Only messages sent by bots", false));
+        o.add_option(dpp::command_option(dpp::co_string, "from",
+                                         "Only messages on/after YYYY-MM-DD", false));
+        o.add_option(dpp::command_option(dpp::co_string, "to",
+                                         "Only messages on/before YYYY-MM-DD", false));
+        o.add_option(dpp::command_option(dpp::co_string, "older_than",
+                                         "Only messages older than e.g. 30d, 6mo, 1y", false));
+    };
+
     dpp::command_option channel(dpp::co_sub_command, "channel", "Purge one channel");
-    channel.add_option(dpp::command_option(dpp::co_string, "keywords",
-                                           "Comma-separated keywords to match", true));
     channel.add_option(dpp::command_option(dpp::co_channel, "target",
                                            "Channel to purge (default: current)", false));
-    channel.add_option(dpp::command_option(dpp::co_string, "from",
-                                           "Only messages on/after YYYY-MM-DD", false));
-    channel.add_option(dpp::command_option(dpp::co_string, "to",
-                                           "Only messages on/before YYYY-MM-DD", false));
+    add_filters(channel);
 
     dpp::command_option guild(dpp::co_sub_command, "guild", "Purge the entire server");
-    guild.add_option(dpp::command_option(dpp::co_string, "keywords",
-                                         "Comma-separated keywords to match", true));
-    guild.add_option(dpp::command_option(dpp::co_string, "from",
-                                         "Only messages on/after YYYY-MM-DD", false));
-    guild.add_option(dpp::command_option(dpp::co_string, "to",
-                                         "Only messages on/before YYYY-MM-DD", false));
+    add_filters(guild);
 
     sc.add_option(channel);
     sc.add_option(guild);
@@ -483,7 +554,7 @@ void Purge::handle(const dpp::slashcommand_t& event) const {
         }
         return std::nullopt;
     };
-    auto get_channel = [&](const std::string& n) -> std::uint64_t {
+    auto get_snowflake = [&](const std::string& n) -> std::uint64_t {
         for (const auto& o : sub.options) {
             if (o.name == n && std::holds_alternative<dpp::snowflake>(o.value)) {
                 return static_cast<std::uint64_t>(std::get<dpp::snowflake>(o.value));
@@ -491,14 +562,31 @@ void Purge::handle(const dpp::slashcommand_t& event) const {
         }
         return 0;
     };
+    auto get_bool = [&](const std::string& n) -> bool {
+        for (const auto& o : sub.options) {
+            if (o.name == n && std::holds_alternative<bool>(o.value)) {
+                return std::get<bool>(o.value);
+            }
+        }
+        return false;
+    };
 
     PurgeParams p;
     p.scope = sub.name;
     p.keywords = parse_keywords(get_string("keywords").value_or(""));
-    if (p.keywords.empty()) {
-        event.reply(dpp::message("Provide at least one keyword to match.")
-                        .set_flags(dpp::m_ephemeral));
-        return;
+    p.pattern = get_string("pattern").value_or("");
+    p.author_id = get_snowflake("author");
+    p.has = get_string("has").value_or("");
+    p.bots_only = get_bool("bots_only");
+
+    if (!p.pattern.empty()) {
+        try {
+            std::regex validate(p.pattern, std::regex::ECMAScript | std::regex::icase);
+        } catch (const std::regex_error&) {
+            event.reply(dpp::message("Invalid `pattern` — not a valid regular expression.")
+                            .set_flags(dpp::m_ephemeral));
+            return;
+        }
     }
 
     if (auto from = get_string("from")) {
@@ -519,9 +607,32 @@ void Purge::handle(const dpp::slashcommand_t& event) const {
         }
         p.to_id = ms_to_snowflake(ms);
     }
+    if (auto older = get_string("older_than")) {
+        auto secs = parse_duration_seconds(*older);
+        if (!secs) {
+            event.reply(dpp::message("Invalid `older_than` — use e.g. `30d`, `6mo`, `1y`.")
+                            .set_flags(dpp::m_ephemeral));
+            return;
+        }
+        std::int64_t cutoff_ms = now_ms() - *secs * 1000;
+        std::uint64_t cutoff_id =
+            ms_to_snowflake(cutoff_ms > 0 ? static_cast<std::uint64_t>(cutoff_ms) : 0);
+        // Keep the more restrictive (smaller) upper bound.
+        if (p.to_id == 0 || cutoff_id < p.to_id) p.to_id = cutoff_id;
+    }
+
+    const bool any_filter = !p.keywords.empty() || !p.pattern.empty() || p.author_id ||
+                            !p.has.empty() || p.bots_only || p.from_id || p.to_id;
+    if (!any_filter) {
+        event.reply(
+            dpp::message("Provide at least one filter (keywords, author, pattern, has, "
+                         "bots_only, from/to, or older_than).")
+                .set_flags(dpp::m_ephemeral));
+        return;
+    }
 
     if (p.scope == "channel") {
-        std::uint64_t target = get_channel("target");
+        std::uint64_t target = get_snowflake("target");
         p.channel_id = target ? target : static_cast<std::uint64_t>(event.command.channel_id);
     }
 
@@ -575,6 +686,40 @@ void Purge::handle_button(const dpp::button_click_t& event) const {
         return;
     }
 
+    if (action == "export") {
+        std::string body;
+        std::int64_t count = 0;
+        auto stmt = services_->db.prepare(
+            "SELECT channel_id, message_id, created_at, author_id, content "
+            "FROM purge_matches WHERE scan_job_id=?1 ORDER BY channel_id, message_id");
+        stmt.bind(1, scan_job_id);
+        while (stmt.step()) {
+            auto chan = static_cast<std::uint64_t>(stmt.column_int(0));
+            auto mid = static_cast<std::uint64_t>(stmt.column_int(1));
+            std::time_t t = stmt.column_int(2) / 1000;
+            auto author = static_cast<std::uint64_t>(stmt.column_int(3));
+            std::string content = stmt.column_text(4);
+
+            char when[24] = "?";
+            if (std::tm* g = std::gmtime(&t)) std::strftime(when, sizeof(when), "%Y-%m-%d %H:%M", g);
+            dpp::channel* c = dpp::find_channel(dpp::snowflake(chan));
+            std::string cname = c ? "#" + c->name : std::to_string(chan);
+
+            body += "[" + std::string(when) + "] " + cname + " user:" + std::to_string(author) +
+                    " msg:" + std::to_string(mid) + "\n" + content + "\n\n";
+            ++count;
+        }
+        if (count == 0) {
+            event.reply(dpp::message("Nothing to export.").set_flags(dpp::m_ephemeral));
+            return;
+        }
+        dpp::message file("📄 " + std::to_string(count) + " matched message(s) attached.");
+        file.set_flags(dpp::m_ephemeral)
+            .add_file("purge-" + std::to_string(scan_job_id) + ".txt", body);
+        event.reply(file);
+        return;
+    }
+
     nlohmann::json params;
     params["scan_job_id"] = scan_job_id;
     auto del_id = services_->jobs.enqueue(event.command.guild_id, "purge_delete", params.dump(),
@@ -594,6 +739,7 @@ void register_purge_jobs(JobRunner& jobs, Db&) {
 }
 
 const std::vector<std::string>& purge_schema() {
+    // Append-only. New steps go at the end (see main's migration list).
     static const std::vector<std::string> steps = {
         R"sql(
         CREATE TABLE purge_matches(
@@ -605,6 +751,11 @@ const std::vector<std::string>& purge_schema() {
             PRIMARY KEY(scan_job_id, message_id)
         );
         CREATE INDEX idx_purge_pending ON purge_matches(scan_job_id, channel_id, deleted);
+        )sql",
+        // author_id + content enable the export-before-delete audit file.
+        R"sql(
+        ALTER TABLE purge_matches ADD COLUMN author_id INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE purge_matches ADD COLUMN content   TEXT    NOT NULL DEFAULT '';
         )sql",
     };
     return steps;
