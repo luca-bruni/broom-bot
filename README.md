@@ -53,6 +53,7 @@ test server instantly instead of propagating globally (~1 h).
 | `/serverinfo` | Server stats |
 | `/avatar [user]` | Full-size avatar |
 | `/purge channel\|guild keywords:… [from] [to]` | Bulk-delete matching messages (dry-run → confirm). Requires Manage Messages |
+| `/jobs list\|cancel` | View or cancel background jobs by ID. Requires Manage Messages |
 
 ## License
 

@@ -3,6 +3,7 @@
 #include "commands/avatar.hpp"
 #include "commands/choose.hpp"
 #include "commands/coinflip.hpp"
+#include "commands/jobs.hpp"
 #include "commands/ping.hpp"
 #include "commands/purge.hpp"
 #include "commands/roll.hpp"
@@ -16,6 +17,7 @@ std::vector<std::unique_ptr<Command>> all_commands(Services& services) {
     commands.push_back(std::make_unique<commands::Avatar>());
     commands.push_back(std::make_unique<commands::Choose>());
     commands.push_back(std::make_unique<commands::Coinflip>());
+    commands.push_back(std::make_unique<commands::Jobs>(services));
     commands.push_back(std::make_unique<commands::Ping>());
     commands.push_back(std::make_unique<commands::Purge>(services));
     commands.push_back(std::make_unique<commands::Roll>());
