@@ -43,17 +43,33 @@ test server instantly instead of propagating globally (~1 h).
 
 ## Commands
 
+**Fun**
+
 | Command | Description |
 |---|---|
 | `/ping` | Ping pong! |
 | `/coinflip` | Flip a coin, with a "Flip again" button |
 | `/roll [dice]` | Roll dice, e.g. `/roll dice:2d6` |
 | `/choose options` | Pick one, e.g. `/choose options:pizza \| sushi` |
+| `/8ball question` | Ask the magic 8-ball |
+
+**Info**
+
+| Command | Description |
+|---|---|
 | `/userinfo [user]` | Account + membership info |
 | `/serverinfo` | Server stats |
 | `/avatar [user]` | Full-size avatar |
-| `/purge channel\|guild keywords:… [from] [to]` | Bulk-delete matching messages (dry-run → confirm). Requires Manage Messages |
-| `/jobs list\|cancel` | View or cancel background jobs by ID. Requires Manage Messages |
+| `/roleinfo role` | Role details (color, position, flags) |
+| `/channelinfo channel` | Channel details (type, slowmode, topic) |
+| `/emojiinfo emoji` | Custom emoji details + CDN URL |
+
+**Moderation** (require Manage Messages)
+
+| Command | Description |
+|---|---|
+| `/purge channel\|guild …` | Bulk-delete by keywords, author, pattern, `has`, `bots_only`, date range / `older_than`; dry-run → confirm, with Export |
+| `/jobs list\|cancel` | View or cancel background jobs by ID |
 
 ## License
 
