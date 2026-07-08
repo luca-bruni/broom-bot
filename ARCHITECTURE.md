@@ -25,6 +25,8 @@ src/
                       all_commands.cpp. See README for the full set.
 external/DPP          DPP pinned as a git submodule
 external/sqlite       SQLite amalgamation, vendored (not a submodule)
+external/doctest      doctest single header, vendored (unit-test framework)
+tests/                doctest unit tests (pure logic)
 CMakeLists.txt        Dual-mode build (see Build)
 docs/                 Design docs
 .env                  Secrets, gitignored (.env.sample documents required keys)
@@ -128,14 +130,26 @@ cmake --build build
 ./build/broom_bot                   # run from repo root (reads ./.env)
 ```
 
+## Tests
+
+Vendored **doctest** (`external/doctest/`, header-only). `tests/` cover the pure,
+decision-making logic — parsers (`parse_duration_seconds`, `parse_date_ms`,
+`ms_to_snowflake`) and filter predicates (`message_matches` via the DPP-free
+`MessageView`). The pattern: extract a command's pure logic into a testable
+header so it can be exercised without a live Discord connection; the thin
+DPP glue (REST calls firing, gateway routing) is left to the CI smoke test and
+manual testing. **Every new command adds tests** — build with `broom_tests`
+(on by default; `-DBB_BUILD_TESTS=OFF` to skip).
+
 ## CI
 
 `.github/workflows/build.yml` builds all three OSes on every push/PR to master
-(skipping pure-docs changes via `paths-ignore`), then smoke-tests that the binary
-starts and exits cleanly on missing config. `external/DPP/install` is cached keyed
-on the pinned submodule SHA + runner image version: bumping the submodule triggers
-one DPP rebuild per platform, then builds take ~1–2 min. Master is branch-protected
-(all three checks required to merge; admin can still push docs directly).
+(skipping pure-docs changes via `paths-ignore`), runs the doctest suite, then
+smoke-tests that the binary starts and exits cleanly on missing config.
+`external/DPP/install` is cached keyed on the pinned submodule SHA + runner image
+version: bumping the submodule triggers one DPP rebuild per platform, then builds
+take ~1–2 min. Master is branch-protected (all three checks required to merge;
+admin can still push docs directly).
 
 ## Conventions
 
