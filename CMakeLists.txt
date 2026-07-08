@@ -88,11 +88,15 @@ add_executable(broom_bot
     src/core/registry.cpp
     src/commands/all_commands.cpp
     src/commands/avatar.cpp
+    src/commands/channelinfo.cpp
     src/commands/choose.cpp
     src/commands/coinflip.cpp
+    src/commands/eightball.cpp
+    src/commands/emojiinfo.cpp
     src/commands/jobs.cpp
     src/commands/ping.cpp
     src/commands/purge.cpp
+    src/commands/roleinfo.cpp
     src/commands/roll.cpp
     src/commands/serverinfo.cpp
     src/commands/userinfo.cpp
@@ -137,6 +141,7 @@ if(BB_BUILD_TESTS)
         tests/test_duration.cpp
         tests/test_timeparse.cpp
         tests/test_purge_filter.cpp
+        tests/test_info_format.cpp
     )
     target_include_directories(broom_tests PRIVATE src external/doctest)
     add_test(NAME broom_tests COMMAND broom_tests)
