@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(broom_bot LANGUAGES C CXX)
+project(broom_bot VERSION 0.1.0 LANGUAGES C CXX)
 
 # Single-config generators (Ninja): Microsoft CMake defaults CMAKE_BUILD_TYPE to Debug.
 # We want Release by default without requiring -DCMAKE_BUILD_TYPE=Release.
@@ -87,21 +87,25 @@ add_executable(broom_bot
     src/core/jobs.cpp
     src/core/registry.cpp
     src/commands/all_commands.cpp
+    src/commands/about.cpp
     src/commands/avatar.cpp
     src/commands/channelinfo.cpp
     src/commands/choose.cpp
     src/commands/coinflip.cpp
     src/commands/eightball.cpp
     src/commands/emojiinfo.cpp
+    src/commands/help.cpp
     src/commands/jobs.cpp
     src/commands/ping.cpp
     src/commands/purge.cpp
     src/commands/roleinfo.cpp
     src/commands/roll.cpp
     src/commands/serverinfo.cpp
+    src/commands/stats.cpp
     src/commands/userinfo.cpp
 )
 target_include_directories(broom_bot PRIVATE src)
+target_compile_definitions(broom_bot PRIVATE BROOM_VERSION="${broom_bot_VERSION}")
 target_link_libraries(broom_bot PRIVATE dpp::dpp sqlite3)
 
 include(GNUInstallDirs)

@@ -45,3 +45,12 @@ TEST_CASE("human_duration: formatting buckets") {
     CHECK(human_duration(3660) == "~1h 1m");
     CHECK(human_duration(7325) == "~2h 2m");
 }
+
+TEST_CASE("format_uptime: omits leading zero units") {
+    CHECK(format_uptime(0) == "0s");
+    CHECK(format_uptime(45) == "45s");
+    CHECK(format_uptime(90) == "1m 30s");
+    CHECK(format_uptime(3600) == "1h 0m 0s");
+    CHECK(format_uptime(90061) == "1d 1h 1m 1s");
+    CHECK(format_uptime(-5) == "0s"); // clamps negatives
+}

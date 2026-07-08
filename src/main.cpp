@@ -1,5 +1,6 @@
 #include "commands/all_commands.hpp"
 #include "commands/purge.hpp"
+#include "core/catalog.hpp"
 #include "core/config.hpp"
 #include "core/db.hpp"
 #include "core/jobs.hpp"
@@ -7,10 +8,15 @@
 #include "core/services.hpp"
 
 #include <dpp/dpp.h>
+#include <chrono>
 #include <cstdio>
 #include <exception>
 #include <filesystem>
 #include <vector>
+
+#ifndef BROOM_VERSION
+#define BROOM_VERSION "dev"
+#endif
 
 int main() {
     broom::Config config;
@@ -36,9 +42,19 @@ int main() {
     bot.on_log(dpp::utility::cout_logger());
 
     broom::JobRunner jobs(bot, db);
-    broom::Services services{jobs, db};
+    broom::CommandCatalog catalog;
+    broom::Services services{jobs, db, catalog, std::chrono::steady_clock::now(),
+                             BROOM_VERSION};
 
-    broom::CommandRegistry registry(broom::all_commands(services));
+    auto commands = broom::all_commands(services);
+    // Snapshot each command's name/description for /help and /stats (app_id is
+    // irrelevant to those two fields, so 0 is fine here).
+    for (const auto& command : commands) {
+        dpp::slashcommand def = command->definition(0);
+        catalog.entries.push_back({def.name, def.description});
+    }
+
+    broom::CommandRegistry registry(std::move(commands));
     broom::commands::register_purge_jobs(jobs, db);
     registry.attach(bot, config.dev_guild_id);
     jobs.start();

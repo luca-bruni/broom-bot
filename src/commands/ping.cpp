@@ -7,7 +7,8 @@ dpp::slashcommand Ping::definition(dpp::snowflake app_id) const {
 }
 
 void Ping::handle(const dpp::slashcommand_t& event) const {
-    event.reply("Pong!");
+    int rest_ms = static_cast<int>(event.owner->rest_ping * 1000);
+    event.reply("🏓 Pong! REST latency: **" + std::to_string(rest_ms) + "ms**");
 }
 
 } // namespace broom::commands
