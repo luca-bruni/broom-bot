@@ -71,7 +71,7 @@ JobContext::JobContext(JobRunner& runner, dpp::cluster& bot_ref, Db& db_ref,
       params(std::move(params_str)), runner_(runner) {}
 
 bool JobContext::cancelled() const {
-    return runner_.cancel_requested_.load() == job_id || runner_.stopping_.load();
+    return runner_.job_cancelled(job_id);
 }
 
 void JobContext::progress(std::int64_t scanned, std::int64_t matched,
@@ -193,8 +193,7 @@ void JobRunner::start() {
             return;
         }
 
-        cancel_requested_ = job_id;
-        wake_.notify_all();
+        request_cancel(job_id);
         event.reply(dpp::message("Cancelling job #" + std::to_string(job_id) + "…")
                         .set_flags(dpp::m_ephemeral));
     });
@@ -252,7 +251,28 @@ void JobRunner::run_one(std::int64_t job_id) {
     }
 
     active_job_ = 0;
-    if (cancel_requested_.load() == job_id) cancel_requested_ = 0;
+    {
+        std::lock_guard lock(mutex_);
+        cancel_set_.erase(job_id);
+    }
+}
+
+bool JobRunner::request_cancel(std::int64_t job_id) {
+    std::lock_guard lock(mutex_);
+    auto stmt = db_.prepare("SELECT status FROM jobs WHERE id=?1");
+    stmt.bind(1, job_id);
+    if (!stmt.step()) return false;
+    std::string status = stmt.column_text(0);
+    if (status != "queued" && status != "running") return false;
+    cancel_set_.insert(job_id);
+    wake_.notify_all();
+    return true;
+}
+
+bool JobRunner::job_cancelled(std::int64_t job_id) {
+    if (stopping_.load()) return true;
+    std::lock_guard lock(mutex_);
+    return cancel_set_.count(job_id) > 0;
 }
 
 void JobRunner::finish(std::int64_t job_id, const std::string& status,

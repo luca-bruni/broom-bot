@@ -11,6 +11,7 @@
 #include <map>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <string>
 #include <thread>
 
@@ -72,6 +73,10 @@ public:
     // are registered.
     void start();
 
+    // Signals cancellation of a queued/running job. Caller is responsible for
+    // authorization. Returns false if the job is not found or already terminal.
+    bool request_cancel(std::int64_t job_id);
+
 private:
     friend class JobContext;
 
@@ -80,6 +85,7 @@ private:
     void finish(std::int64_t job_id, const std::string& status, const std::string& note);
     void edit_progress_message(std::int64_t job_id, const std::string& text,
                                bool remove_button);
+    bool job_cancelled(std::int64_t job_id);
 
     dpp::cluster& bot_;
     Db& db_;
@@ -88,7 +94,7 @@ private:
     std::mutex mutex_;
     std::condition_variable wake_;
     std::atomic<bool> stopping_{false};
-    std::atomic<std::int64_t> cancel_requested_{0};
+    std::set<std::int64_t> cancel_set_; // guarded by mutex_
     std::int64_t active_job_{0};
     std::thread worker_;
 };
