@@ -33,6 +33,15 @@ set(DPP_DEPS_BIN_DIR "${DPP_SOURCE_DIR}/win32/bin") # DPP's bundled libssl/libcr
 # Prefer the repo-local DPP install when BB_BUILD_DPP=OFF
 list(PREPEND CMAKE_PREFIX_PATH "${DPP_INSTALL_DIR}")
 
+# On Windows, pin OpenSSL to DPP's bundled 1.1 SDK (headers + import libs that
+# match the prebuilt dpp.dll and the libssl-1_1/libcrypto-1_1 DLLs shipped next
+# to the exe). Without this, find_package(OpenSSL) — invoked transitively by
+# DPP's package config — can latch onto an unrelated OpenSSL on PATH (e.g.
+# PostgreSQL's 3.x), which is ABI-incompatible with dpp.dll.
+if(WIN32 AND EXISTS "${DPP_SOURCE_DIR}/win32/lib/libssl.lib")
+    set(OPENSSL_ROOT_DIR "${DPP_SOURCE_DIR}/win32" CACHE PATH "OpenSSL root (DPP bundled)" FORCE)
+endif()
+
 if(BB_BUILD_DPP)
     if(NOT EXISTS "${DPP_SOURCE_DIR}/CMakeLists.txt")
         message(FATAL_ERROR
