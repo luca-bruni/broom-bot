@@ -119,6 +119,11 @@ Two modes via `BB_BUILD_DPP` (default `OFF`):
   **Quirk**: DPP's exported target omits `INTERFACE_INCLUDE_DIRECTORIES`; our
   CMakeLists patches the include path onto `dpp::dpp` (handling Windows's
   versioned `include/dpp-X.Y` layout).
+  **Quirk (Windows)**: `OPENSSL_ROOT_DIR` is pinned to DPP's bundled OpenSSL 1.1
+  SDK (`external/DPP/win32`) so `find_package(OpenSSL)` — invoked transitively by
+  DPP's package config — can't latch onto an unrelated OpenSSL on PATH (e.g.
+  PostgreSQL's 3.x), which would be ABI-incompatible with `dpp.dll` and the
+  `libssl-1_1`/`libcrypto-1_1` DLLs copied next to the exe.
 
 Both modes link the same `dpp::dpp` target. On Windows, post-build/install steps
 copy `dpp.dll` + DPP's bundled deps (`external/DPP/win32/bin`) next to the exe.
