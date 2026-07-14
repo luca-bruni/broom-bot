@@ -31,6 +31,10 @@ CommandRegistry::CommandRegistry(std::vector<std::unique_ptr<Command>> commands)
     }
 }
 
+void CommandRegistry::set_usage_hook(std::function<void(const std::string&)> hook) {
+    usage_hook_ = std::move(hook);
+}
+
 void CommandRegistry::attach(dpp::cluster& bot, dpp::snowflake dev_guild_id) {
     bot.on_slashcommand([this](const dpp::slashcommand_t& event) {
         auto name = event.command.get_command_name();
@@ -39,7 +43,10 @@ void CommandRegistry::attach(dpp::cluster& bot, dpp::snowflake dev_guild_id) {
             event.owner->log(dpp::ll_warning, "Unknown command: " + name);
             return;
         }
-        guarded(event, "/" + name, [&] { it->second->handle(event); });
+        guarded(event, "/" + name, [&] {
+            if (usage_hook_) usage_hook_(name);
+            it->second->handle(event);
+        });
     });
 
     // custom_id convention: "<command>:<action>" — route to the owning command.

@@ -1,6 +1,7 @@
 #include "commands/stats.hpp"
 
 #include "commands/embeds.hpp"
+#include "core/metrics.hpp"
 #include "core/timeparse.hpp"
 
 namespace broom::commands {
@@ -20,7 +21,8 @@ void Stats::handle(const dpp::slashcommand_t& event) const {
         .add_field("REST latency",
                    std::to_string(static_cast<int>(event.owner->rest_ping * 1000)) + "ms",
                    true)
-        .add_field("Uptime", format_uptime(services_->uptime_seconds()), false);
+        .add_field("Commands run", std::to_string(total_command_uses(services_->db)), true)
+        .add_field("Uptime", format_uptime(services_->uptime_seconds()), true);
     event.reply(dpp::message().add_embed(embed));
 }
 

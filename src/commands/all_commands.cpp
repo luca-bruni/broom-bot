@@ -14,6 +14,7 @@
 #include "commands/remind.hpp"
 #include "commands/roleinfo.hpp"
 #include "commands/roll.hpp"
+#include "commands/schedule.hpp"
 #include "commands/serverinfo.hpp"
 #include "commands/stats.hpp"
 #include "commands/userinfo.hpp"
@@ -36,6 +37,7 @@ std::vector<std::unique_ptr<Command>> all_commands(Services& services) {
     commands.push_back(std::make_unique<commands::Remind>(services));
     commands.push_back(std::make_unique<commands::RoleInfo>());
     commands.push_back(std::make_unique<commands::Roll>());
+    commands.push_back(std::make_unique<commands::Schedule>(services));
     commands.push_back(std::make_unique<commands::Serverinfo>());
     commands.push_back(std::make_unique<commands::Stats>(services));
     commands.push_back(std::make_unique<commands::Userinfo>());

@@ -117,6 +117,7 @@ add_executable(broom_bot
     src/commands/remind.cpp
     src/commands/roleinfo.cpp
     src/commands/roll.cpp
+    src/commands/schedule.cpp
     src/commands/serverinfo.cpp
     src/commands/stats.cpp
     src/commands/userinfo.cpp
@@ -165,6 +166,7 @@ if(BB_BUILD_TESTS)
         tests/test_timeparse.cpp
         tests/test_purge_filter.cpp
         tests/test_info_format.cpp
+        tests/test_pagination.cpp
         tests/test_remind_rules.cpp
     )
     target_include_directories(broom_tests PRIVATE src external/doctest)
