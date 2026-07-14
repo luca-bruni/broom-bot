@@ -2,6 +2,29 @@
 
 namespace broom {
 
+namespace {
+
+// Dispatch guard: a throwing handler must not unwind DPP's event thread.
+// Log it and answer with an ephemeral error so the user isn't left with a
+// silently "thinking…" interaction. The reply may itself fail if the handler
+// already replied before throwing — DPP logs that; nothing more to do.
+template <typename Event, typename Fn>
+void guarded(const Event& event, const std::string& what, Fn&& fn) {
+    try {
+        std::forward<Fn>(fn)();
+    } catch (const std::exception& e) {
+        event.owner->log(dpp::ll_error, what + " threw: " + e.what());
+        event.reply(dpp::message("⚠️ Something went wrong — the error has been logged.")
+                        .set_flags(dpp::m_ephemeral));
+    } catch (...) {
+        event.owner->log(dpp::ll_error, what + " threw a non-standard exception");
+        event.reply(dpp::message("⚠️ Something went wrong — the error has been logged.")
+                        .set_flags(dpp::m_ephemeral));
+    }
+}
+
+} // namespace
+
 CommandRegistry::CommandRegistry(std::vector<std::unique_ptr<Command>> commands) {
     for (auto& command : commands) {
         commands_.emplace(command->name(), std::move(command));
@@ -10,13 +33,13 @@ CommandRegistry::CommandRegistry(std::vector<std::unique_ptr<Command>> commands)
 
 void CommandRegistry::attach(dpp::cluster& bot, dpp::snowflake dev_guild_id) {
     bot.on_slashcommand([this](const dpp::slashcommand_t& event) {
-        auto it = commands_.find(event.command.get_command_name());
+        auto name = event.command.get_command_name();
+        auto it = commands_.find(name);
         if (it == commands_.end()) {
-            event.owner->log(dpp::ll_warning,
-                             "Unknown command: " + event.command.get_command_name());
+            event.owner->log(dpp::ll_warning, "Unknown command: " + name);
             return;
         }
-        it->second->handle(event);
+        guarded(event, "/" + name, [&] { it->second->handle(event); });
     });
 
     // custom_id convention: "<command>:<action>" — route to the owning command.
@@ -29,7 +52,7 @@ void CommandRegistry::attach(dpp::cluster& bot, dpp::snowflake dev_guild_id) {
             event.owner->log(dpp::ll_debug, "Button not command-routed: " + event.custom_id);
             return;
         }
-        it->second->handle_button(event);
+        guarded(event, "button " + event.custom_id, [&] { it->second->handle_button(event); });
     });
 
     bot.on_ready([this, &bot, dev_guild_id](const dpp::ready_t&) {

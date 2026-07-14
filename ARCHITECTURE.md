@@ -60,6 +60,10 @@ data/                 Runtime SQLite database (gitignored; DATA_DIR)
   before `:` (see `commands/coinflip.cpp`). Other subsystems may attach their
   own `on_button_click` handlers for prefixes the registry doesn't own (the job
   runner claims `job:cancel:<id>`).
+- **Dispatch is exception-guarded**: a handler that throws is logged and
+  answered with an ephemeral error instead of unwinding DPP's event thread
+  (see `guarded()` in registry.cpp; the job-cancel button handler does the
+  same).
 - `all_commands(Services&)` returns an explicit
   `std::vector<std::unique_ptr<Command>>`. **Deliberately not static
   self-registration**: static registrars are dead-stripped by MSVC and have
