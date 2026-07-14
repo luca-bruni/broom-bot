@@ -2,6 +2,7 @@
 
 #include "commands/embeds.hpp"
 #include "commands/options.hpp"
+#include "commands/pagination.hpp"
 #include "commands/remind_rules.hpp"
 #include "core/db.hpp"
 #include "core/duration.hpp"
@@ -69,23 +70,32 @@ void handle_set(Services& services, const dpp::slashcommand_t& event,
                     .set_flags(dpp::m_ephemeral));
 }
 
-void handle_list(Services& services, const dpp::slashcommand_t& event) {
+// Shared by /remind list and its pagination buttons.
+dpp::message list_message(Services& services, dpp::snowflake user_id, int page) {
     auto stmt = services.db.prepare(
         "SELECT id, message, due_at FROM reminders WHERE user_id=?1 AND "
-        "status='pending' ORDER BY due_at LIMIT 10");
-    stmt.bind(1, to_i64(event.command.usr.id));
+        "status='pending' ORDER BY due_at LIMIT 100");
+    stmt.bind(1, to_i64(user_id));
 
-    std::string body;
+    std::vector<std::string> lines;
     while (stmt.step()) {
-        body += "`#" + std::to_string(stmt.column_int(0)) +
-                "` <t:" + std::to_string(stmt.column_int(2)) + ":R> — " + stmt.column_text(1) +
-                "\n";
+        lines.push_back("`#" + std::to_string(stmt.column_int(0)) + "` <t:" +
+                        std::to_string(stmt.column_int(2)) + ":R> — " + stmt.column_text(1));
     }
-    if (body.empty()) body = "No pending reminders.";
 
+    PageView view = paginate(lines, page);
     dpp::embed embed;
-    embed.set_title("Your reminders").set_description(body).set_color(kEmbedColor);
-    event.reply(dpp::message().add_embed(embed).set_flags(dpp::m_ephemeral));
+    embed.set_title("Your reminders")
+        .set_description(view.body.empty() ? "No pending reminders." : view.body)
+        .set_color(kEmbedColor);
+    if (view.pages > 1) {
+        embed.set_footer(dpp::embed_footer().set_text("Page " + std::to_string(view.page + 1) +
+                                                      "/" + std::to_string(view.pages)));
+    }
+
+    dpp::message msg = dpp::message().add_embed(embed).set_flags(dpp::m_ephemeral);
+    if (view.pages > 1) msg.add_component(page_buttons("remind", view.page, view.pages));
+    return msg;
 }
 
 void handle_cancel(Services& services, const dpp::slashcommand_t& event,
@@ -137,65 +147,17 @@ void Remind::handle(const dpp::slashcommand_t& event) const {
     if (sub.name == "set") {
         handle_set(*services_, event, sub);
     } else if (sub.name == "list") {
-        handle_list(*services_, event);
+        event.reply(list_message(*services_, event.command.usr.id, 0));
     } else if (sub.name == "cancel") {
         handle_cancel(*services_, event, sub);
     }
 }
 
-// --- ReminderService ---------------------------------------------------------
-
-ReminderService::ReminderService(dpp::cluster& bot, Db& db) : bot_(bot), db_(db) {}
-
-ReminderService::~ReminderService() {
-    {
-        std::lock_guard lock(mutex_);
-        stopping_ = true;
-    }
-    wake_.notify_all();
-    if (worker_.joinable()) worker_.join();
-}
-
-void ReminderService::start() {
-    worker_ = std::thread([this] { loop(); });
-}
-
-void ReminderService::loop() {
-    for (;;) {
-        {
-            std::unique_lock lock(mutex_);
-            wake_.wait_for(lock, std::chrono::seconds(5), [this] { return stopping_; });
-            if (stopping_) return;
-        }
-
-        struct Due {
-            std::int64_t id;
-            std::int64_t channel_id;
-            std::int64_t user_id;
-            std::string message;
-        };
-        std::vector<Due> due;
-        {
-            auto stmt = db_.prepare(
-                "SELECT id, channel_id, user_id, message FROM reminders WHERE "
-                "status='pending' AND due_at <= ?1 ORDER BY due_at LIMIT 20");
-            stmt.bind(1, now_seconds());
-            while (stmt.step()) {
-                due.push_back({stmt.column_int(0), stmt.column_int(1), stmt.column_int(2),
-                               stmt.column_text(3)});
-            }
-        }
-
-        for (const auto& r : due) {
-            // Mark sent first: a crash mid-send drops the reminder rather than
-            // duplicating it on restart.
-            db_.prepare("UPDATE reminders SET status='sent' WHERE id=?1").bind(1, r.id).step();
-            bot_.message_create(
-                dpp::message(dpp::snowflake(static_cast<std::uint64_t>(r.channel_id)),
-                             "⏰ <@" + std::to_string(static_cast<std::uint64_t>(r.user_id)) +
-                                 "> Reminder: " + r.message));
-        }
-    }
+void Remind::handle_button(const dpp::button_click_t& event) const {
+    auto page = parse_page_custom_id(event.custom_id);
+    if (!page) return;
+    // The list is ephemeral, so only its owner can see (and click) it.
+    event.reply(dpp::ir_update_message, list_message(*services_, event.command.usr.id, *page));
 }
 
 const std::vector<std::string>& remind_schema() {

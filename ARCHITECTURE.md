@@ -24,17 +24,19 @@ src/
     jobs.hpp/.cpp     JobRunner/JobContext: background job subsystem
     rest_await.hpp    await_rest<T>: cancellation-aware blocking REST call
                       for job worker code
+    metrics.hpp       Command-usage counters (written via the registry's
+                      usage hook, read by /stats)
     duration.hpp      parse_duration_seconds ("30d", "1w2d", …)
     timeparse.hpp     date/snowflake/uptime parsing + formatting
     rng.hpp           Shared thread-safe RNG helper
   commands/           One .cpp per command (feature modules); listed in
                       all_commands.cpp. See README for the full set.
                       Shared command helpers live here as headers: embeds.hpp
-                      (kEmbedColor, created_relative, require_guild),
-                      options.hpp (typed subcommand option lookup), and the
-                      DPP-free testable logic (info_format.hpp,
-                      purge_filter.hpp, remind_rules.hpp,
-                      eightball_answers.hpp).
+                      (kEmbedColor, created_relative, require_guild,
+                      page_buttons), options.hpp (typed subcommand option
+                      lookup), and the DPP-free testable logic
+                      (info_format.hpp, purge_filter.hpp, pagination.hpp,
+                      remind_rules.hpp, eightball_answers.hpp).
 external/DPP          DPP pinned as a git submodule
 external/sqlite       SQLite amalgamation, vendored (not a submodule)
 external/doctest      doctest single header, vendored (unit-test framework)
@@ -64,6 +66,16 @@ data/                 Runtime SQLite database (gitignored; DATA_DIR)
   answered with an ephemeral error instead of unwinding DPP's event thread
   (see `guarded()` in registry.cpp; the job-cancel button handler does the
   same).
+- The registry exposes a **usage hook** (`set_usage_hook`) called with the
+  command name on every dispatch; main wires it to the usage counters in
+  `core/metrics.hpp`.
+- **Paginated lists** reuse `paginate()` (commands/pagination.hpp, pure) +
+  `page_buttons()` (embeds.hpp); the buttons follow the
+  `"<command>:page:<n>"` custom_id convention and route back to the owning
+  command's `handle_button` (see /jobs list, /remind list).
+- **Shutdown**: SIGINT/SIGTERM (and SIGBREAK on Windows) set a flag; a watcher
+  thread calls `cluster::shutdown()`, `bot.start(st_wait)` returns, and the
+  service destructors join their worker threads.
 - `all_commands(Services&)` returns an explicit
   `std::vector<std::unique_ptr<Command>>`. **Deliberately not static
   self-registration**: static registrars are dead-stripped by MSVC and have
@@ -117,10 +129,13 @@ Long-running work (history scans, bulk deletes) can take hours, far past the
 
 Not everything timed belongs in the JobRunner: jobs are exclusive per guild,
 so a reminder queued for tomorrow would block `/purge` (and a running purge
-would delay deliveries). `/remind` instead uses `ReminderService`
-(`commands/remind.hpp`) — its own polling thread (~5s) over a `reminders`
-table, fire-and-forget delivery, at-most-once semantics (rows are marked sent
-before the REST call, so a crash drops rather than duplicates).
+would delay deliveries). Timed deliveries instead go through `ScheduleService`
+(`commands/schedule.hpp`) — its own polling thread (~5s) over the `reminders`
+table, dispatched by `kind` (`reminder` from /remind, `message` from
+/schedule message), fire-and-forget delivery, at-most-once semantics (rows are
+marked sent before the REST call, so a crash drops rather than duplicates).
+`/schedule event` creates a native Discord scheduled event immediately —
+Discord handles that countdown itself, so no row is stored.
 
 ## Config
 

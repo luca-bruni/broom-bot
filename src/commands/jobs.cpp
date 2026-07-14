@@ -2,6 +2,7 @@
 
 #include "commands/embeds.hpp"
 #include "commands/options.hpp"
+#include "commands/pagination.hpp"
 #include "core/db.hpp"
 #include "core/jobs.hpp"
 
@@ -9,6 +10,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace broom::commands {
 
@@ -23,14 +25,14 @@ std::string status_emoji(const std::string& status) {
     return "•";
 }
 
-void handle_list(Services& services, const dpp::slashcommand_t& event) {
+// Shared by /jobs list and its pagination buttons.
+dpp::message list_message(Services& services, dpp::snowflake guild_id, int page) {
     auto stmt = services.db.prepare(
         "SELECT id, kind, status, scanned, matched, actioned, started_by, created_at "
-        "FROM jobs WHERE guild_id=?1 ORDER BY id DESC LIMIT 10");
-    stmt.bind(1,
-              static_cast<std::int64_t>(static_cast<std::uint64_t>(event.command.guild_id)));
+        "FROM jobs WHERE guild_id=?1 ORDER BY id DESC LIMIT 100");
+    stmt.bind(1, static_cast<std::int64_t>(static_cast<std::uint64_t>(guild_id)));
 
-    std::string body;
+    std::vector<std::string> lines;
     while (stmt.step()) {
         std::int64_t id = stmt.column_int(0);
         std::string kind = stmt.column_text(1);
@@ -41,19 +43,29 @@ void handle_list(Services& services, const dpp::slashcommand_t& event) {
         auto started_by = static_cast<std::uint64_t>(stmt.column_int(6));
         std::int64_t created = stmt.column_int(7);
 
-        body += "`#" + std::to_string(id) + "` " + kind + " — " + status_emoji(status) + " " +
-                status + " · " + std::to_string(scanned) + "/" + std::to_string(matched) +
-                "/" + std::to_string(actioned) + " · <@" + std::to_string(started_by) +
-                "> · <t:" + std::to_string(created) + ":R>\n";
+        lines.push_back("`#" + std::to_string(id) + "` " + kind + " — " +
+                        status_emoji(status) + " " + status + " · " + std::to_string(scanned) +
+                        "/" + std::to_string(matched) + "/" + std::to_string(actioned) +
+                        " · <@" + std::to_string(started_by) +
+                        "> · <t:" + std::to_string(created) + ":R>");
     }
-    if (body.empty()) body = "No jobs yet.";
+
+    PageView view = paginate(lines, page);
+    std::string footer = "scanned / matched / actioned";
+    if (view.pages > 1) {
+        footer +=
+            " · page " + std::to_string(view.page + 1) + "/" + std::to_string(view.pages);
+    }
 
     dpp::embed embed;
     embed.set_title("Background jobs")
-        .set_description(body)
-        .set_footer(dpp::embed_footer().set_text("scanned / matched / actioned"))
+        .set_description(view.body.empty() ? "No jobs yet." : view.body)
+        .set_footer(dpp::embed_footer().set_text(footer))
         .set_color(kEmbedColor);
-    event.reply(dpp::message().add_embed(embed).set_flags(dpp::m_ephemeral));
+
+    dpp::message msg = dpp::message().add_embed(embed).set_flags(dpp::m_ephemeral);
+    if (view.pages > 1) msg.add_component(page_buttons("jobs", view.page, view.pages));
+    return msg;
 }
 
 void handle_cancel(Services& services, const dpp::slashcommand_t& event,
@@ -101,10 +113,18 @@ void Jobs::handle(const dpp::slashcommand_t& event) const {
     const auto& sub = interaction.options[0];
 
     if (sub.name == "list") {
-        handle_list(*services_, event);
+        event.reply(list_message(*services_, event.command.guild_id, 0));
     } else if (sub.name == "cancel") {
         handle_cancel(*services_, event, sub);
     }
+}
+
+void Jobs::handle_button(const dpp::button_click_t& event) const {
+    auto page = parse_page_custom_id(event.custom_id);
+    if (!page) return;
+    // The list is ephemeral, so only its owner can see (and click) it.
+    event.reply(dpp::ir_update_message,
+                list_message(*services_, event.command.guild_id, *page));
 }
 
 } // namespace broom::commands
