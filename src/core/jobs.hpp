@@ -95,7 +95,6 @@ private:
     std::condition_variable wake_;
     std::atomic<bool> stopping_{false};
     std::set<std::int64_t> cancel_set_; // guarded by mutex_
-    std::int64_t active_job_{0};
     std::thread worker_;
 };
 

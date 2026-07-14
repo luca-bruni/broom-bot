@@ -1,9 +1,12 @@
 #include "core/config.hpp"
 
+#include <charconv>
+#include <cstdint>
 #include <cstdlib>
 #include <fstream>
 #include <map>
 #include <stdexcept>
+#include <system_error>
 
 namespace broom {
 namespace {
@@ -41,7 +44,13 @@ Config Config::load(const std::string& env_path) {
     }
 
     if (std::string guild = get(file_values, "DEV_GUILD_ID"); !guild.empty()) {
-        config.dev_guild_id = std::stoull(guild);
+        std::uint64_t id = 0;
+        auto [ptr, ec] = std::from_chars(guild.data(), guild.data() + guild.size(), id);
+        if (ec != std::errc{} || ptr != guild.data() + guild.size()) {
+            throw std::runtime_error("DEV_GUILD_ID must be a numeric guild id, got: " +
+                                     guild);
+        }
+        config.dev_guild_id = id;
     }
     if (std::string dir = get(file_values, "DATA_DIR"); !dir.empty()) {
         config.data_dir = dir;

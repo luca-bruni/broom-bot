@@ -1,6 +1,8 @@
 #include "core/jobs.hpp"
 
+#include <charconv>
 #include <chrono>
+#include <system_error>
 
 namespace broom {
 
@@ -176,7 +178,13 @@ void JobRunner::start() {
     bot_.on_button_click([this](const dpp::button_click_t& event) {
         constexpr std::string_view prefix = "job:cancel:";
         if (event.custom_id.rfind(prefix, 0) != 0) return;
-        auto job_id = std::stoll(event.custom_id.substr(prefix.size()));
+
+        // Parsed defensively — custom_ids arrive from clients.
+        std::int64_t job_id = 0;
+        const char* id_begin = event.custom_id.data() + prefix.size();
+        const char* id_end = event.custom_id.data() + event.custom_id.size();
+        auto [ptr, ec] = std::from_chars(id_begin, id_end, job_id);
+        if (ec != std::errc{} || ptr != id_end) return;
 
         auto stmt = db_.prepare("SELECT started_by FROM jobs WHERE id=?1 AND "
                                 "status IN ('queued','running')");
@@ -238,7 +246,6 @@ void JobRunner::run_one(std::int64_t job_id) {
     }
 
     db_.prepare("UPDATE jobs SET status='running' WHERE id=?1").bind(1, job_id).step();
-    active_job_ = job_id;
 
     JobContext ctx(*this, bot_, db_, job_id, guild_id, params);
     try {
@@ -250,7 +257,6 @@ void JobRunner::run_one(std::int64_t job_id) {
                  "Job #" + std::to_string(job_id) + " failed: " + e.what());
     }
 
-    active_job_ = 0;
     {
         std::lock_guard lock(mutex_);
         cancel_set_.erase(job_id);

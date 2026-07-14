@@ -1,6 +1,6 @@
 #include "commands/serverinfo.hpp"
 
-#include <cstdint>
+#include "commands/embeds.hpp"
 
 namespace broom::commands {
 
@@ -18,17 +18,13 @@ void Serverinfo::handle(const dpp::slashcommand_t& event) const {
 
     dpp::embed embed;
     embed.set_title(guild->name)
-        .set_color(0x5865F2)
+        .set_color(kEmbedColor)
         .add_field("ID", std::to_string(guild->id), true)
         .add_field("Owner", "<@" + std::to_string(guild->owner_id) + ">", true)
         .add_field("Members", std::to_string(guild->member_count), true)
         .add_field("Channels", std::to_string(guild->channels.size()), true)
         .add_field("Roles", std::to_string(guild->roles.size()), true)
-        .add_field("Created",
-                   "<t:" + std::to_string(
-                               static_cast<std::uint64_t>(guild->id.get_creation_time())) +
-                       ":R>",
-                   true);
+        .add_field("Created", created_relative(guild->id), true);
 
     if (!guild->get_icon_url().empty()) {
         embed.set_thumbnail(guild->get_icon_url(256));

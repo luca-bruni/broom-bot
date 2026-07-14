@@ -41,3 +41,16 @@ TEST_CASE("parse_duration_seconds: large spans (years) fit in int64") {
     // 10 years of seconds is nowhere near int64 max.
     CHECK(parse_duration_seconds("10y") == 10LL * 31536000);
 }
+
+TEST_CASE("parse_duration_seconds: overflow rejected, not wrapped") {
+    // More digits than int64 can hold.
+    CHECK_FALSE(parse_duration_seconds("99999999999999999999s").has_value());
+    // Digits fit, but value*unit overflows.
+    CHECK_FALSE(parse_duration_seconds("9223372036854775807y").has_value());
+    // Each token fits, but the sum overflows.
+    CHECK_FALSE(
+        parse_duration_seconds("9223372036854775807s1s").has_value());
+    // Near the limit but valid stays valid.
+    CHECK(parse_duration_seconds("9223372036854775807s") ==
+          9223372036854775807LL);
+}

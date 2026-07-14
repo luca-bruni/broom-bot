@@ -1,16 +1,8 @@
 #include "commands/userinfo.hpp"
 
-#include <cstdint>
+#include "commands/embeds.hpp"
 
 namespace broom::commands {
-
-namespace {
-
-std::string discord_timestamp(dpp::snowflake id) {
-    return "<t:" + std::to_string(static_cast<std::uint64_t>(id.get_creation_time())) + ":R>";
-}
-
-} // namespace
 
 dpp::slashcommand Userinfo::definition(dpp::snowflake app_id) const {
     return dpp::slashcommand(name(), "Show info about a user", app_id)
@@ -28,10 +20,10 @@ void Userinfo::handle(const dpp::slashcommand_t& event) const {
     dpp::embed embed;
     embed.set_title(user.format_username())
         .set_thumbnail(user.get_avatar_url(256))
-        .set_color(0x5865F2)
+        .set_color(kEmbedColor)
         .add_field("ID", std::to_string(user.id), true)
         .add_field("Bot", user.is_bot() ? "Yes" : "No", true)
-        .add_field("Created", discord_timestamp(user.id), true);
+        .add_field("Created", created_relative(user.id), true);
 
     // Guild-specific info when the target is a member of this server.
     try {

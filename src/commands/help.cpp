@@ -1,5 +1,7 @@
 #include "commands/help.hpp"
 
+#include "commands/embeds.hpp"
+
 namespace broom::commands {
 
 dpp::slashcommand Help::definition(dpp::snowflake app_id) const {
@@ -14,7 +16,7 @@ void Help::handle(const dpp::slashcommand_t& event) const {
     if (body.empty()) body = "No commands registered.";
 
     dpp::embed embed;
-    embed.set_title("Commands").set_description(body).set_color(0x5865F2);
+    embed.set_title("Commands").set_description(body).set_color(kEmbedColor);
     event.reply(dpp::message().add_embed(embed).set_flags(dpp::m_ephemeral));
 }
 

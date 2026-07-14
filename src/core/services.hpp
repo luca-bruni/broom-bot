@@ -3,6 +3,7 @@
 #include "core/catalog.hpp"
 
 #include <chrono>
+#include <cstdint>
 #include <string>
 
 namespace broom {
@@ -20,6 +21,13 @@ struct Services {
     CommandCatalog& catalog;
     std::chrono::steady_clock::time_point started_at;
     std::string version;
+
+    // Whole seconds since the bot started (for /about and /stats).
+    std::int64_t uptime_seconds() const {
+        return std::chrono::duration_cast<std::chrono::seconds>(
+                   std::chrono::steady_clock::now() - started_at)
+            .count();
+    }
 };
 
 } // namespace broom

@@ -17,12 +17,23 @@ src/
     config.hpp/.cpp   .env + environment config loading
     command.hpp       Command interface
     registry.hpp/.cpp CommandRegistry: bulk-registers commands, routes events
-    services.hpp      Services{ JobRunner&, Db& } injected into commands
+    services.hpp      Services{ JobRunner&, Db&, catalog, uptime } injected
+                      into commands
+    catalog.hpp       Command name/description snapshot for /help and /stats
     db.hpp/.cpp       SQLite (vendored) RAII wrapper + migrations
     jobs.hpp/.cpp     JobRunner/JobContext: background job subsystem
+    rest_await.hpp    await_rest<T>: cancellation-aware blocking REST call
+                      for job worker code
+    duration.hpp      parse_duration_seconds ("30d", "1w2d", …)
+    timeparse.hpp     date/snowflake/uptime parsing + formatting
     rng.hpp           Shared thread-safe RNG helper
   commands/           One .cpp per command (feature modules); listed in
                       all_commands.cpp. See README for the full set.
+                      Shared command helpers live here as headers: embeds.hpp
+                      (kEmbedColor, created_relative, require_guild),
+                      options.hpp (typed subcommand option lookup), and the
+                      DPP-free testable logic (info_format.hpp,
+                      purge_filter.hpp, eightball_answers.hpp).
 external/DPP          DPP pinned as a git submodule
 external/sqlite       SQLite amalgamation, vendored (not a submodule)
 external/doctest      doctest single header, vendored (unit-test framework)
@@ -93,9 +104,11 @@ Long-running work (history scans, bulk deletes) can take hours, far past the
 - **Cancellation**: `request_cancel(job_id)` signals a mutex-guarded set checked
   by `cancelled()`; shared by the per-message Cancel button (`job:cancel:<id>`,
   starter-only) and the `/jobs cancel` command (any Manage-Messages mod).
-- **REST from the worker**: DPP calls are async; the worker blocks on a
-  `shared_ptr<promise>` so abandoning the wait on cancellation can't dangle the
-  callback. Progress edits are throttled to protect the rate-limit budget.
+- **REST from the worker**: DPP calls are async; job code blocks on them via
+  `await_rest<T>` (`core/rest_await.hpp`), which polls a `shared_ptr<promise>`
+  so abandoning the wait on cancellation can't dangle the callback and returns
+  nullopt when the job is cancelled mid-wait. Progress edits are throttled to
+  protect the rate-limit budget.
 
 ## Config
 
