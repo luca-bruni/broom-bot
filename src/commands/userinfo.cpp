@@ -6,8 +6,8 @@ namespace broom::commands {
 
 dpp::slashcommand Userinfo::definition(dpp::snowflake app_id) const {
     return dpp::slashcommand(name(), "Show info about a user", app_id)
-        .add_option(dpp::command_option(dpp::co_user, "user",
-                                        "User to inspect (default: you)", false));
+        .add_option(dpp::command_option(dpp::co_user, "user", "User to inspect (default: you)",
+                                        false));
 }
 
 void Userinfo::handle(const dpp::slashcommand_t& event) const {
@@ -27,13 +27,11 @@ void Userinfo::handle(const dpp::slashcommand_t& event) const {
 
     // Guild-specific info when the target is a member of this server.
     try {
-        const dpp::guild_member& member =
-            (user.id == event.command.usr.id)
-                ? event.command.member
-                : event.command.get_resolved_member(user.id);
+        const dpp::guild_member& member = (user.id == event.command.usr.id)
+                                              ? event.command.member
+                                              : event.command.get_resolved_member(user.id);
         if (member.joined_at) {
-            embed.add_field("Joined",
-                            "<t:" + std::to_string(member.joined_at) + ":R>", true);
+            embed.add_field("Joined", "<t:" + std::to_string(member.joined_at) + ":R>", true);
         }
         embed.add_field("Roles", std::to_string(member.get_roles().size()), true);
     } catch (const dpp::logic_exception&) {

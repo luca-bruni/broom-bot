@@ -56,6 +56,14 @@ test server instantly instead of propagating globally (~1 h).
 | `/choose options` | Pick one, e.g. `/choose options:pizza \| sushi` |
 | `/8ball question` | Ask the magic 8-ball |
 
+**Utility**
+
+| Command | Description |
+|---|---|
+| `/remind set in message` | Set a reminder, e.g. `in:2h` — pings you in the channel when due |
+| `/remind list` | List your pending reminders |
+| `/remind cancel id` | Cancel one of your reminders |
+
 **Info**
 
 | Command | Description |

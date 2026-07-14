@@ -33,7 +33,8 @@ src/
                       (kEmbedColor, created_relative, require_guild),
                       options.hpp (typed subcommand option lookup), and the
                       DPP-free testable logic (info_format.hpp,
-                      purge_filter.hpp, eightball_answers.hpp).
+                      purge_filter.hpp, remind_rules.hpp,
+                      eightball_answers.hpp).
 external/DPP          DPP pinned as a git submodule
 external/sqlite       SQLite amalgamation, vendored (not a submodule)
 external/doctest      doctest single header, vendored (unit-test framework)
@@ -110,6 +111,13 @@ Long-running work (history scans, bulk deletes) can take hours, far past the
   nullopt when the job is cancelled mid-wait. Progress edits are throttled to
   protect the rate-limit budget.
 
+Not everything timed belongs in the JobRunner: jobs are exclusive per guild,
+so a reminder queued for tomorrow would block `/purge` (and a running purge
+would delay deliveries). `/remind` instead uses `ReminderService`
+(`commands/remind.hpp`) — its own polling thread (~5s) over a `reminders`
+table, fire-and-forget delivery, at-most-once semantics (rows are marked sent
+before the REST call, so a crash drops rather than duplicates).
+
 ## Config
 
 - `core/config` parses `.env` (KEY=VALUE, `#` comments) into a map, then overlays
@@ -122,6 +130,8 @@ Long-running work (history scans, bulk deletes) can take hours, far past the
 ## Build
 
 CMake ≥ 3.20, C++20. Build type defaults to Release on single-config generators.
+`BB_BUILD_BOT=OFF` skips the bot executable and the entire DPP dependency,
+building only the DPP-free unit tests (used by the sanitizer CI job).
 Two modes via `BB_BUILD_DPP` (default `OFF`):
 
 - **`-DBB_BUILD_DPP=ON`** — builds the DPP submodule and installs it to
@@ -163,7 +173,10 @@ manual testing. **Every new command adds tests** — build with `broom_tests`
 
 `.github/workflows/build.yml` builds all three OSes on every push/PR to master
 (skipping pure-docs changes via `paths-ignore`), runs the doctest suite, then
-smoke-tests that the binary starts and exits cleanly on missing config.
+smoke-tests that the binary starts and exits cleanly on missing config. Two
+extra jobs run alongside the matrix: `sanitize` (the unit tests under
+ASan+UBSan via `BB_BUILD_BOT=OFF`, no DPP needed) and `format` (clang-format
+check against the committed `.clang-format`).
 `external/DPP/install` is cached keyed on the pinned submodule SHA + runner image
 version: bumping the submodule triggers one DPP rebuild per platform, then builds
 take ~1–2 min. Master is branch-protected (all three checks required to merge;
@@ -171,6 +184,9 @@ admin can still push docs directly).
 
 ## Conventions
 
+- Formatting is enforced: `.clang-format` at the repo root, checked by the CI
+  `format` job. Reformat with
+  `find src tests -name '*.cpp' -o -name '*.hpp' | xargs clang-format -i`.
 - Explicit source lists in CMake (no globbing).
 - `core/` must not depend on `commands/`; commands depend only on `core/`, DPP,
   and (if job-backed) the vendored SQLite via `core/db`.

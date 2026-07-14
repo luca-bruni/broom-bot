@@ -1,0 +1,12 @@
+# broom-bot code style. Enforced by the CI `format` job (clang-format 18).
+# Reformat locally: find src tests -name '*.cpp' -o -name '*.hpp' | xargs clang-format -i
+BasedOnStyle: Google
+IndentWidth: 4
+AccessModifierOffset: -4
+ColumnLimit: 95
+PointerAlignment: Left
+DerivePointerAlignment: false
+AllowShortFunctionsOnASingleLine: All
+AllowShortCaseLabelsOnASingleLine: true
+IncludeBlocks: Preserve
+SpacesBeforeTrailingComments: 1

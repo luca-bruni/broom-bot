@@ -22,13 +22,13 @@ struct MessageView {
 struct PurgeParams {
     std::string scope; // "channel" | "guild"
     std::vector<std::string> keywords;
-    std::string pattern;          // regex (ECMAScript, case-insensitive); empty = none
-    std::uint64_t author_id = 0;  // only this author; 0 = any
-    std::string has;              // "", "attachment", "link", or "embed"
+    std::string pattern;         // regex (ECMAScript, case-insensitive); empty = none
+    std::uint64_t author_id = 0; // only this author; 0 = any
+    std::string has;             // "", "attachment", "link", or "embed"
     bool bots_only = false;
     std::uint64_t channel_id = 0; // channel scope target; 0 for guild
-    std::uint64_t from_id = 0;     // lower snowflake bound (0 = none)
-    std::uint64_t to_id = 0;       // upper snowflake bound (0 = latest)
+    std::uint64_t from_id = 0;    // lower snowflake bound (0 = none)
+    std::uint64_t to_id = 0;      // upper snowflake bound (0 = latest)
 };
 
 inline std::string to_lower(std::string s) {

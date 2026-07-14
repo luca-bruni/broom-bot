@@ -11,8 +11,8 @@ dpp::slashcommand Serverinfo::definition(dpp::snowflake app_id) const {
 void Serverinfo::handle(const dpp::slashcommand_t& event) const {
     dpp::guild* guild = dpp::find_guild(event.command.guild_id);
     if (!guild) {
-        event.reply(dpp::message("This command only works in a server.")
-                        .set_flags(dpp::m_ephemeral));
+        event.reply(
+            dpp::message("This command only works in a server.").set_flags(dpp::m_ephemeral));
         return;
     }
 

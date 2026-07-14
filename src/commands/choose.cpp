@@ -48,9 +48,10 @@ void Choose::handle(const dpp::slashcommand_t& event) const {
         return;
     }
 
-    event.reply("🎲 I choose: **" +
-                items[static_cast<std::size_t>(rng_int(0, static_cast<int>(items.size()) - 1))] +
-                "**");
+    event.reply(
+        "🎲 I choose: **" +
+        items[static_cast<std::size_t>(rng_int(0, static_cast<int>(items.size()) - 1))] +
+        "**");
 }
 
 } // namespace broom::commands

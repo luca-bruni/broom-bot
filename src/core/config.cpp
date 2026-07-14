@@ -39,16 +39,15 @@ Config Config::load(const std::string& env_path) {
     Config config;
     config.bot_token = get(file_values, "BOT_TOKEN");
     if (config.bot_token.empty()) {
-        throw std::runtime_error(
-            "BOT_TOKEN is not set (checked environment and " + env_path + ")");
+        throw std::runtime_error("BOT_TOKEN is not set (checked environment and " + env_path +
+                                 ")");
     }
 
     if (std::string guild = get(file_values, "DEV_GUILD_ID"); !guild.empty()) {
         std::uint64_t id = 0;
         auto [ptr, ec] = std::from_chars(guild.data(), guild.data() + guild.size(), id);
         if (ec != std::errc{} || ptr != guild.data() + guild.size()) {
-            throw std::runtime_error("DEV_GUILD_ID must be a numeric guild id, got: " +
-                                     guild);
+            throw std::runtime_error("DEV_GUILD_ID must be a numeric guild id, got: " + guild);
         }
         config.dev_guild_id = id;
     }

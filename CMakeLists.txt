@@ -25,6 +25,11 @@ endif()
 #      via -DCMAKE_PREFIX_PATH.
 option(BB_BUILD_DPP "Build the DPP submodule from source" OFF)
 
+# OFF skips the bot executable (and the DPP dependency entirely) and builds
+# only the DPP-free unit tests — used by the sanitizer CI job, where
+# instrumenting the tests is cheap but building DPP is not.
+option(BB_BUILD_BOT "Build the bot executable (requires DPP)" ON)
+
 set(DPP_SOURCE_DIR   "${CMAKE_SOURCE_DIR}/external/DPP")
 set(DPP_SUBBUILD_DIR "${CMAKE_BINARY_DIR}/dpp")
 set(DPP_INSTALL_DIR  "${DPP_SOURCE_DIR}/install")
@@ -42,7 +47,7 @@ if(WIN32 AND EXISTS "${DPP_SOURCE_DIR}/win32/lib/libssl.lib")
     set(OPENSSL_ROOT_DIR "${DPP_SOURCE_DIR}/win32" CACHE PATH "OpenSSL root (DPP bundled)" FORCE)
 endif()
 
-if(BB_BUILD_DPP)
+if(BB_BUILD_BOT AND BB_BUILD_DPP)
     if(NOT EXISTS "${DPP_SOURCE_DIR}/CMakeLists.txt")
         message(FATAL_ERROR
             "DPP submodule not found. Run: git submodule update --init --recursive")
@@ -61,7 +66,7 @@ if(BB_BUILD_DPP)
                 --prefix "${DPP_INSTALL_DIR}" --config $<CONFIG>
         DEPENDS dpp
         COMMENT "Installing DPP into ${DPP_INSTALL_DIR}")
-else()
+elseif(BB_BUILD_BOT)
     find_package(dpp CONFIG REQUIRED)
 
     # DPP's exported target omits its include directory; derive it from the
@@ -81,6 +86,8 @@ else()
     set_target_properties(dpp::dpp PROPERTIES
         INTERFACE_INCLUDE_DIRECTORIES "${DPP_INCLUDE_DIR}")
 endif()
+
+if(BB_BUILD_BOT)
 
 # Vendored SQLite amalgamation (see ARCHITECTURE.md; not a submodule)
 add_library(sqlite3 STATIC external/sqlite/sqlite3.c)
@@ -107,6 +114,7 @@ add_executable(broom_bot
     src/commands/jobs.cpp
     src/commands/ping.cpp
     src/commands/purge.cpp
+    src/commands/remind.cpp
     src/commands/roleinfo.cpp
     src/commands/roll.cpp
     src/commands/serverinfo.cpp
@@ -120,9 +128,11 @@ target_link_libraries(broom_bot PRIVATE dpp::dpp sqlite3)
 include(GNUInstallDirs)
 install(TARGETS broom_bot RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
+endif() # BB_BUILD_BOT
+
 # Make the exe runnable on Windows: copy dpp.dll + DPP's packaged deps next to it,
 # in both the build tree and the install tree.
-if(WIN32)
+if(BB_BUILD_BOT AND WIN32)
     if(BB_BUILD_DPP)
         # Ensure dpp.dll is staged into DPP_INSTALL_DIR before the copy below runs.
         add_dependencies(broom_bot dpp_install)
@@ -155,6 +165,7 @@ if(BB_BUILD_TESTS)
         tests/test_timeparse.cpp
         tests/test_purge_filter.cpp
         tests/test_info_format.cpp
+        tests/test_remind_rules.cpp
     )
     target_include_directories(broom_tests PRIVATE src external/doctest)
     add_test(NAME broom_tests COMMAND broom_tests)

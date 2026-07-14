@@ -1,5 +1,6 @@
 #include "commands/all_commands.hpp"
 #include "commands/purge.hpp"
+#include "commands/remind.hpp"
 #include "core/catalog.hpp"
 #include "core/config.hpp"
 #include "core/db.hpp"
@@ -36,6 +37,8 @@ int main() {
     std::vector<std::string> migrations = broom::job_schema();
     const auto& purge_steps = broom::commands::purge_schema();
     migrations.insert(migrations.end(), purge_steps.begin(), purge_steps.end());
+    const auto& remind_steps = broom::commands::remind_schema();
+    migrations.insert(migrations.end(), remind_steps.begin(), remind_steps.end());
     db.migrate(migrations);
 
     dpp::cluster bot(config.bot_token);
@@ -58,6 +61,9 @@ int main() {
     broom::commands::register_purge_jobs(jobs, db);
     registry.attach(bot, config.dev_guild_id);
     jobs.start();
+
+    broom::commands::ReminderService reminders(bot, db);
+    reminders.start();
 
     bot.start(dpp::st_wait);
     return 0;

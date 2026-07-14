@@ -20,9 +20,7 @@ Db::Stmt::Stmt(sqlite3* db, const std::string& sql) {
     }
 }
 
-Db::Stmt::~Stmt() {
-    sqlite3_finalize(stmt_);
-}
+Db::Stmt::~Stmt() { sqlite3_finalize(stmt_); }
 
 Db::Stmt& Db::Stmt::bind(int index, std::int64_t value) {
     sqlite3_bind_int64(stmt_, index, value);
@@ -61,8 +59,7 @@ bool Db::Stmt::column_is_null(int index) const {
 
 Db::Db(const std::string& path) {
     if (sqlite3_open_v2(path.c_str(), &handle_,
-                        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE |
-                            SQLITE_OPEN_FULLMUTEX,
+                        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
                         nullptr) != SQLITE_OK) {
         fail(handle_, "cannot open database " + path);
     }
@@ -71,9 +68,7 @@ Db::Db(const std::string& path) {
     exec("PRAGMA busy_timeout=5000");
 }
 
-Db::~Db() {
-    sqlite3_close(handle_);
-}
+Db::~Db() { sqlite3_close(handle_); }
 
 void Db::exec(const std::string& sql) {
     char* err = nullptr;
@@ -84,9 +79,7 @@ void Db::exec(const std::string& sql) {
     }
 }
 
-std::int64_t Db::last_insert_id() const {
-    return sqlite3_last_insert_rowid(handle_);
-}
+std::int64_t Db::last_insert_id() const { return sqlite3_last_insert_rowid(handle_); }
 
 void Db::migrate(const std::vector<std::string>& steps) {
     auto version_stmt = prepare("PRAGMA user_version");

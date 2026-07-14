@@ -9,7 +9,7 @@
 namespace broom {
 class JobRunner;
 class Db;
-}
+} // namespace broom
 
 namespace broom::commands {
 

@@ -11,6 +11,7 @@
 #include "commands/jobs.hpp"
 #include "commands/ping.hpp"
 #include "commands/purge.hpp"
+#include "commands/remind.hpp"
 #include "commands/roleinfo.hpp"
 #include "commands/roll.hpp"
 #include "commands/serverinfo.hpp"
@@ -32,6 +33,7 @@ std::vector<std::unique_ptr<Command>> all_commands(Services& services) {
     commands.push_back(std::make_unique<commands::Jobs>(services));
     commands.push_back(std::make_unique<commands::Ping>());
     commands.push_back(std::make_unique<commands::Purge>(services));
+    commands.push_back(std::make_unique<commands::Remind>(services));
     commands.push_back(std::make_unique<commands::RoleInfo>());
     commands.push_back(std::make_unique<commands::Roll>());
     commands.push_back(std::make_unique<commands::Serverinfo>());
