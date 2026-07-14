@@ -190,25 +190,33 @@ void JobRunner::start() {
         auto [ptr, ec] = std::from_chars(id_begin, id_end, job_id);
         if (ec != std::errc{} || ptr != id_end) return;
 
-        auto stmt = db_.prepare(
-            "SELECT started_by FROM jobs WHERE id=?1 AND "
-            "status IN ('queued','running')");
-        stmt.bind(1, job_id);
-        if (!stmt.step()) {
-            event.reply(
-                dpp::message("That job is no longer active.").set_flags(dpp::m_ephemeral));
-            return;
-        }
-        if (static_cast<std::uint64_t>(stmt.column_int(0)) !=
-            static_cast<std::uint64_t>(event.command.usr.id)) {
-            event.reply(dpp::message("Only the user who started this job can cancel it.")
-                            .set_flags(dpp::m_ephemeral));
-            return;
-        }
+        // Guarded like the registry's dispatch: a DB error here must not
+        // unwind DPP's event thread.
+        try {
+            auto stmt = db_.prepare(
+                "SELECT started_by FROM jobs WHERE id=?1 AND "
+                "status IN ('queued','running')");
+            stmt.bind(1, job_id);
+            if (!stmt.step()) {
+                event.reply(
+                    dpp::message("That job is no longer active.").set_flags(dpp::m_ephemeral));
+                return;
+            }
+            if (static_cast<std::uint64_t>(stmt.column_int(0)) !=
+                static_cast<std::uint64_t>(event.command.usr.id)) {
+                event.reply(dpp::message("Only the user who started this job can cancel it.")
+                                .set_flags(dpp::m_ephemeral));
+                return;
+            }
 
-        request_cancel(job_id);
-        event.reply(dpp::message("Cancelling job #" + std::to_string(job_id) + "…")
-                        .set_flags(dpp::m_ephemeral));
+            request_cancel(job_id);
+            event.reply(dpp::message("Cancelling job #" + std::to_string(job_id) + "…")
+                            .set_flags(dpp::m_ephemeral));
+        } catch (const std::exception& e) {
+            bot_.log(dpp::ll_error, "job:cancel button threw: " + std::string(e.what()));
+            event.reply(dpp::message("⚠️ Something went wrong — the error has been logged.")
+                            .set_flags(dpp::m_ephemeral));
+        }
     });
 
     worker_ = std::thread([this] { worker_loop(); });
