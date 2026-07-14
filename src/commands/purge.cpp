@@ -1,24 +1,27 @@
 #include "commands/purge.hpp"
 
+#include "commands/embeds.hpp"
+#include "commands/options.hpp"
 #include "commands/purge_filter.hpp"
 #include "core/db.hpp"
 #include "core/duration.hpp"
 #include "core/jobs.hpp"
+#include "core/rest_await.hpp"
 #include "core/timeparse.hpp"
 
 #include <dpp/dpp.h>
 #include <dpp/nlohmann/json.hpp>
 
 #include <algorithm>
+#include <charconv>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <ctime>
-#include <future>
-#include <memory>
 #include <optional>
 #include <regex>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace broom::commands {
@@ -74,65 +77,53 @@ MessageView to_view(const dpp::message& m) {
 }
 
 // --- Blocking REST wrappers (worker thread) --------------------------------
-// A shared_ptr-owned promise keeps the callback safe even if we abandon the
-// wait on cancellation.
+// Built on core/rest_await.hpp: block until the REST call completes, bailing
+// out (nullopt / false) if the job is cancelled mid-wait.
 
 struct Page {
     bool ok = false;
-    bool cancelled = false;
     std::vector<dpp::message> messages;
 };
 
-Page fetch_page(JobContext& ctx, dpp::snowflake channel, std::uint64_t before) {
-    auto prom = std::make_shared<std::promise<Page>>();
-    auto fut = prom->get_future();
-    ctx.bot.messages_get(
-        channel, 0, dpp::snowflake(before), 0, 100,
-        [prom](const dpp::confirmation_callback_t& cb) {
-            Page p;
-            if (!cb.is_error()) {
-                p.ok = true;
-                const auto& mm = std::get<dpp::message_map>(cb.value);
-                p.messages.reserve(mm.size());
-                for (const auto& [id, m] : mm) p.messages.push_back(m);
-            }
-            prom->set_value(std::move(p));
-        });
-    while (fut.wait_for(std::chrono::milliseconds(200)) != std::future_status::ready) {
-        if (ctx.cancelled()) {
-            Page p;
-            p.cancelled = true;
-            return p;
-        }
-    }
-    return fut.get();
+// nullopt = job cancelled while waiting; !page->ok = REST error (permissions).
+std::optional<Page> fetch_page(JobContext& ctx, dpp::snowflake channel,
+                               std::uint64_t before) {
+    return await_rest<Page>(ctx, [&](auto done) {
+        ctx.bot.messages_get(channel, 0, dpp::snowflake(before), 0, 100,
+                             [done](const dpp::confirmation_callback_t& cb) {
+                                 Page p;
+                                 if (!cb.is_error()) {
+                                     p.ok = true;
+                                     const auto& mm = std::get<dpp::message_map>(cb.value);
+                                     p.messages.reserve(mm.size());
+                                     for (const auto& [id, m] : mm) p.messages.push_back(m);
+                                 }
+                                 done(std::move(p));
+                             });
+    });
 }
 
 // Returns true on success (message gone, whether we deleted it or it was
-// already gone). false only on a hard failure we should surface.
+// already gone). false on hard failure or cancellation.
 bool delete_one(JobContext& ctx, dpp::snowflake channel, dpp::snowflake message) {
-    auto prom = std::make_shared<std::promise<bool>>();
-    auto fut = prom->get_future();
-    ctx.bot.message_delete(message, channel, [prom](const dpp::confirmation_callback_t& cb) {
-        prom->set_value(!cb.is_error());
-    });
-    while (fut.wait_for(std::chrono::milliseconds(200)) != std::future_status::ready) {
-        if (ctx.cancelled()) return false;
-    }
-    return fut.get();
+    return await_rest<bool>(ctx, [&](auto done) {
+               ctx.bot.message_delete(message, channel,
+                                      [done](const dpp::confirmation_callback_t& cb) {
+                                          done(!cb.is_error());
+                                      });
+           })
+        .value_or(false);
 }
 
 bool delete_bulk(JobContext& ctx, dpp::snowflake channel,
                  const std::vector<dpp::snowflake>& ids) {
-    auto prom = std::make_shared<std::promise<bool>>();
-    auto fut = prom->get_future();
-    ctx.bot.message_delete_bulk(ids, channel, [prom](const dpp::confirmation_callback_t& cb) {
-        prom->set_value(!cb.is_error());
-    });
-    while (fut.wait_for(std::chrono::milliseconds(200)) != std::future_status::ready) {
-        if (ctx.cancelled()) return false;
-    }
-    return fut.get();
+    return await_rest<bool>(ctx, [&](auto done) {
+               ctx.bot.message_delete_bulk(ids, channel,
+                                           [done](const dpp::confirmation_callback_t& cb) {
+                                               done(!cb.is_error());
+                                           });
+           })
+        .value_or(false);
 }
 
 std::vector<dpp::snowflake> resolve_guild_channels(JobContext& ctx) {
@@ -145,21 +136,19 @@ std::vector<dpp::snowflake> resolve_guild_channels(JobContext& ctx) {
         }
     }
     // Active threads (archived threads are out of scope for v1).
-    auto prom = std::make_shared<std::promise<std::vector<dpp::snowflake>>>();
-    auto fut = prom->get_future();
-    ctx.bot.threads_get_active(ctx.guild_id, [prom](const dpp::confirmation_callback_t& cb) {
-        std::vector<dpp::snowflake> t;
-        if (!cb.is_error()) {
-            const auto& at = std::get<dpp::active_threads>(cb.value);
-            for (const auto& [id, info] : at) t.push_back(id);
-        }
-        prom->set_value(std::move(t));
+    auto threads = await_rest<std::vector<dpp::snowflake>>(ctx, [&](auto done) {
+        ctx.bot.threads_get_active(ctx.guild_id,
+                                   [done](const dpp::confirmation_callback_t& cb) {
+                                       std::vector<dpp::snowflake> t;
+                                       if (!cb.is_error()) {
+                                           const auto& at =
+                                               std::get<dpp::active_threads>(cb.value);
+                                           for (const auto& [id, info] : at) t.push_back(id);
+                                       }
+                                       done(std::move(t));
+                                   });
     });
-    while (fut.wait_for(std::chrono::milliseconds(200)) != std::future_status::ready) {
-        if (ctx.cancelled()) return channels;
-    }
-    auto threads = fut.get();
-    channels.insert(channels.end(), threads.begin(), threads.end());
+    if (threads) channels.insert(channels.end(), threads->begin(), threads->end());
     return channels;
 }
 
@@ -200,24 +189,24 @@ void run_purge_scan(JobContext& ctx) {
 
         bool done = false;
         while (!done && !ctx.cancelled()) {
-            Page page = fetch_page(ctx, channel, before);
-            if (page.cancelled) break;
-            if (!page.ok) {
+            std::optional<Page> page = fetch_page(ctx, channel, before);
+            if (!page) break; // cancelled while waiting
+            if (!page->ok) {
                 ++inaccessible; // missing Read Message History / Manage Messages
                 break;
             }
-            if (page.messages.empty()) {
+            if (page->messages.empty()) {
                 done = true;
                 break;
             }
-            std::sort(page.messages.begin(), page.messages.end(),
+            std::sort(page->messages.begin(), page->messages.end(),
                       [](const dpp::message& a, const dpp::message& b) {
                           return static_cast<std::uint64_t>(a.id) >
                                  static_cast<std::uint64_t>(b.id);
                       });
 
             std::uint64_t oldest = before;
-            for (const auto& m : page.messages) {
+            for (const auto& m : page->messages) {
                 auto mid = static_cast<std::uint64_t>(m.id);
                 if (p.from_id && mid < p.from_id) {
                     done = true;
@@ -245,7 +234,7 @@ void run_purge_scan(JobContext& ctx) {
             before = oldest;
             ctx.save_cursor(channel, before);
             ctx.progress(scanned, matched, 0, "scanning");
-            if (page.messages.size() < 100) done = true;
+            if (page->messages.size() < 100) done = true;
         }
         if (done) ctx.save_cursor(channel, kChannelDone);
     }
@@ -441,48 +430,22 @@ dpp::slashcommand Purge::definition(dpp::snowflake app_id) const {
 }
 
 void Purge::handle(const dpp::slashcommand_t& event) const {
-    if (!event.command.guild_id) {
-        event.reply(dpp::message("This command can only be used in a server.")
-                        .set_flags(dpp::m_ephemeral));
-        return;
-    }
+    if (!require_guild(event)) return;
 
     const auto& interaction = event.command.get_command_interaction();
     if (interaction.options.empty()) return;
     const auto& sub = interaction.options[0];
 
-    auto get_string = [&](const std::string& n) -> std::optional<std::string> {
-        for (const auto& o : sub.options) {
-            if (o.name == n && std::holds_alternative<std::string>(o.value)) {
-                return std::get<std::string>(o.value);
-            }
-        }
-        return std::nullopt;
-    };
-    auto get_snowflake = [&](const std::string& n) -> std::uint64_t {
-        for (const auto& o : sub.options) {
-            if (o.name == n && std::holds_alternative<dpp::snowflake>(o.value)) {
-                return static_cast<std::uint64_t>(std::get<dpp::snowflake>(o.value));
-            }
-        }
-        return 0;
-    };
-    auto get_bool = [&](const std::string& n) -> bool {
-        for (const auto& o : sub.options) {
-            if (o.name == n && std::holds_alternative<bool>(o.value)) {
-                return std::get<bool>(o.value);
-            }
-        }
-        return false;
-    };
+    auto get_string = [&](std::string_view n) { return option_as<std::string>(sub, n); };
 
     PurgeParams p;
     p.scope = sub.name;
     p.keywords = parse_keywords(get_string("keywords").value_or(""));
     p.pattern = get_string("pattern").value_or("");
-    p.author_id = get_snowflake("author");
+    p.author_id = static_cast<std::uint64_t>(
+        option_as<dpp::snowflake>(sub, "author").value_or(dpp::snowflake(0)));
     p.has = get_string("has").value_or("");
-    p.bots_only = get_bool("bots_only");
+    p.bots_only = option_as<bool>(sub, "bots_only").value_or(false);
 
     if (!p.pattern.empty()) {
         try {
@@ -537,8 +500,8 @@ void Purge::handle(const dpp::slashcommand_t& event) const {
     }
 
     if (p.scope == "channel") {
-        std::uint64_t target = get_snowflake("target");
-        p.channel_id = target ? target : static_cast<std::uint64_t>(event.command.channel_id);
+        p.channel_id = static_cast<std::uint64_t>(
+            option_as<dpp::snowflake>(sub, "target").value_or(event.command.channel_id));
     }
 
     auto job_id = services_->jobs.enqueue(event.command.guild_id, "purge_scan",
@@ -557,12 +520,18 @@ void Purge::handle(const dpp::slashcommand_t& event) const {
 }
 
 void Purge::handle_button(const dpp::button_click_t& event) const {
-    // custom_id: "purge:confirm:<scan_job_id>" or "purge:cancel:<scan_job_id>"
+    // custom_id: "purge:<action>:<scan_job_id>" where action is confirm,
+    // export, or cancel. Parsed defensively — custom_ids arrive from clients.
     auto first = event.custom_id.find(':');
     auto second = event.custom_id.find(':', first + 1);
     if (first == std::string::npos || second == std::string::npos) return;
     std::string action = event.custom_id.substr(first + 1, second - first - 1);
-    std::int64_t scan_job_id = std::stoll(event.custom_id.substr(second + 1));
+
+    std::int64_t scan_job_id = 0;
+    const char* id_begin = event.custom_id.data() + second + 1;
+    const char* id_end = event.custom_id.data() + event.custom_id.size();
+    auto [ptr, ec] = std::from_chars(id_begin, id_end, scan_job_id);
+    if (ec != std::errc{} || ptr != id_end) return;
 
     std::int64_t started_by = 0;
     {

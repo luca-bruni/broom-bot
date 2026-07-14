@@ -1,8 +1,7 @@
 #include "commands/channelinfo.hpp"
 
+#include "commands/embeds.hpp"
 #include "commands/info_format.hpp"
-
-#include <cstdint>
 
 namespace broom::commands {
 
@@ -22,7 +21,7 @@ void ChannelInfo::handle(const dpp::slashcommand_t& event) const {
 
     dpp::embed embed;
     embed.set_title("#" + channel->name)
-        .set_color(0x5865F2)
+        .set_color(kEmbedColor)
         .add_field("ID", std::to_string(channel->id), true)
         .add_field("Type", channel_type_name(static_cast<int>(channel->get_type())), true)
         .add_field("NSFW", channel->is_nsfw() ? "Yes" : "No", true);
@@ -33,10 +32,7 @@ void ChannelInfo::handle(const dpp::slashcommand_t& event) const {
     if (channel->parent_id) {
         embed.add_field("Category", "<#" + std::to_string(channel->parent_id) + ">", true);
     }
-    embed.add_field(
-        "Created",
-        "<t:" + std::to_string(static_cast<std::uint64_t>(channel->id.get_creation_time())) + ":R>",
-        true);
+    embed.add_field("Created", created_relative(channel->id), true);
     if (!channel->topic.empty()) {
         embed.set_description(channel->topic);
     }

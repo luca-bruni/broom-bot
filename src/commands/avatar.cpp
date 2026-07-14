@@ -1,5 +1,7 @@
 #include "commands/avatar.hpp"
 
+#include "commands/embeds.hpp"
+
 namespace broom::commands {
 
 dpp::slashcommand Avatar::definition(dpp::snowflake app_id) const {
@@ -17,7 +19,7 @@ void Avatar::handle(const dpp::slashcommand_t& event) const {
 
     dpp::embed embed;
     embed.set_title(user.format_username())
-        .set_color(0x5865F2)
+        .set_color(kEmbedColor)
         .set_image(user.get_avatar_url(1024));
 
     event.reply(dpp::message().add_embed(embed));

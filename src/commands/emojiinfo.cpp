@@ -1,8 +1,7 @@
 #include "commands/emojiinfo.hpp"
 
+#include "commands/embeds.hpp"
 #include "commands/info_format.hpp"
-
-#include <cstdint>
 
 namespace broom::commands {
 
@@ -24,16 +23,11 @@ void EmojiInfo::handle(const dpp::slashcommand_t& event) const {
 
     dpp::embed embed;
     embed.set_title(":" + emoji->name + ":")
-        .set_color(0x5865F2)
+        .set_color(kEmbedColor)
         .set_thumbnail(emoji_url(emoji->id, emoji->animated))
         .add_field("ID", std::to_string(emoji->id), true)
         .add_field("Animated", emoji->animated ? "Yes" : "No", true)
-        .add_field("Created",
-                   "<t:" +
-                       std::to_string(static_cast<std::uint64_t>(
-                           dpp::snowflake(emoji->id).get_creation_time())) +
-                       ":R>",
-                   true)
+        .add_field("Created", created_relative(dpp::snowflake(emoji->id)), true)
         .add_field("URL", emoji_url(emoji->id, emoji->animated), false);
     event.reply(dpp::message().add_embed(embed));
 }

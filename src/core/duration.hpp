@@ -2,6 +2,7 @@
 
 #include <cctype>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <string>
 
@@ -9,9 +10,10 @@ namespace broom {
 
 // Parses a human duration like "30s", "15m", "2h", "3d", "2w", "6mo", "1y",
 // or concatenations ("1w2d", "1mo15d"). Units: s m h d w mo y (mo=30d, y=365d).
-// Returns total seconds, or nullopt if malformed/empty. int64 seconds covers
-// spans far beyond any realistic reminder (billions of years).
+// Returns total seconds, or nullopt if malformed/empty or if the total would
+// overflow int64 (which already covers billions of years).
 inline std::optional<std::int64_t> parse_duration_seconds(const std::string& s) {
+    constexpr std::int64_t kMax = std::numeric_limits<std::int64_t>::max();
     if (s.empty()) return std::nullopt;
     std::int64_t total = 0;
     std::size_t i = 0;
@@ -19,7 +21,9 @@ inline std::optional<std::int64_t> parse_duration_seconds(const std::string& s) 
         if (!std::isdigit(static_cast<unsigned char>(s[i]))) return std::nullopt;
         std::int64_t value = 0;
         while (i < s.size() && std::isdigit(static_cast<unsigned char>(s[i]))) {
-            value = value * 10 + (s[i] - '0');
+            const int digit = s[i] - '0';
+            if (value > (kMax - digit) / 10) return std::nullopt; // digit overflow
+            value = value * 10 + digit;
             ++i;
         }
         std::int64_t unit = 0;
@@ -40,7 +44,10 @@ inline std::optional<std::int64_t> parse_duration_seconds(const std::string& s) 
         } else {
             return std::nullopt; // trailing number with no unit
         }
-        total += value * unit;
+        if (value != 0 && unit > kMax / value) return std::nullopt; // value*unit overflow
+        const std::int64_t add = value * unit;
+        if (total > kMax - add) return std::nullopt; // accumulation overflow
+        total += add;
     }
     return total;
 }

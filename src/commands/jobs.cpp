@@ -1,12 +1,13 @@
 #include "commands/jobs.hpp"
 
+#include "commands/embeds.hpp"
+#include "commands/options.hpp"
 #include "core/db.hpp"
 #include "core/jobs.hpp"
 
 #include <dpp/dpp.h>
 
 #include <cstdint>
-#include <optional>
 #include <string>
 
 namespace broom::commands {
@@ -50,18 +51,13 @@ void handle_list(Services& services, const dpp::slashcommand_t& event) {
     embed.set_title("Background jobs")
         .set_description(body)
         .set_footer(dpp::embed_footer().set_text("scanned / matched / actioned"))
-        .set_color(0x5865F2);
+        .set_color(kEmbedColor);
     event.reply(dpp::message().add_embed(embed).set_flags(dpp::m_ephemeral));
 }
 
 void handle_cancel(Services& services, const dpp::slashcommand_t& event,
                    const dpp::command_data_option& sub) {
-    std::int64_t id = 0;
-    for (const auto& o : sub.options) {
-        if (o.name == "id" && std::holds_alternative<std::int64_t>(o.value)) {
-            id = std::get<std::int64_t>(o.value);
-        }
-    }
+    std::int64_t id = option_as<std::int64_t>(sub, "id").value_or(0);
 
     // Confirm the job belongs to this server before touching it.
     auto stmt = services.db.prepare("SELECT guild_id FROM jobs WHERE id=?1");
@@ -97,11 +93,7 @@ dpp::slashcommand Jobs::definition(dpp::snowflake app_id) const {
 }
 
 void Jobs::handle(const dpp::slashcommand_t& event) const {
-    if (!event.command.guild_id) {
-        event.reply(dpp::message("This command can only be used in a server.")
-                        .set_flags(dpp::m_ephemeral));
-        return;
-    }
+    if (!require_guild(event)) return;
 
     const auto& interaction = event.command.get_command_interaction();
     if (interaction.options.empty()) return;
