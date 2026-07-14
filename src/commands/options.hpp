@@ -14,8 +14,7 @@ namespace broom::commands {
 //   auto keywords = option_as<std::string>(sub, "keywords").value_or("");
 //   bool bots     = option_as<bool>(sub, "bots_only").value_or(false);
 template <typename T>
-std::optional<T> option_as(const dpp::command_data_option& parent,
-                           std::string_view name) {
+std::optional<T> option_as(const dpp::command_data_option& parent, std::string_view name) {
     for (const auto& option : parent.options) {
         if (option.name == name && std::holds_alternative<T>(option.value)) {
             return std::get<T>(option.value);

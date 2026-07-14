@@ -48,9 +48,7 @@ TEST_CASE("parse_duration_seconds: overflow rejected, not wrapped") {
     // Digits fit, but value*unit overflows.
     CHECK_FALSE(parse_duration_seconds("9223372036854775807y").has_value());
     // Each token fits, but the sum overflows.
-    CHECK_FALSE(
-        parse_duration_seconds("9223372036854775807s1s").has_value());
+    CHECK_FALSE(parse_duration_seconds("9223372036854775807s1s").has_value());
     // Near the limit but valid stays valid.
-    CHECK(parse_duration_seconds("9223372036854775807s") ==
-          9223372036854775807LL);
+    CHECK(parse_duration_seconds("9223372036854775807s") == 9223372036854775807LL);
 }

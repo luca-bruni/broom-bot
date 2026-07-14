@@ -86,8 +86,7 @@ struct Page {
 };
 
 // nullopt = job cancelled while waiting; !page->ok = REST error (permissions).
-std::optional<Page> fetch_page(JobContext& ctx, dpp::snowflake channel,
-                               std::uint64_t before) {
+std::optional<Page> fetch_page(JobContext& ctx, dpp::snowflake channel, std::uint64_t before) {
     return await_rest<Page>(ctx, [&](auto done) {
         ctx.bot.messages_get(channel, 0, dpp::snowflake(before), 0, 100,
                              [done](const dpp::confirmation_callback_t& cb) {
@@ -106,23 +105,27 @@ std::optional<Page> fetch_page(JobContext& ctx, dpp::snowflake channel,
 // Returns true on success (message gone, whether we deleted it or it was
 // already gone). false on hard failure or cancellation.
 bool delete_one(JobContext& ctx, dpp::snowflake channel, dpp::snowflake message) {
-    return await_rest<bool>(ctx, [&](auto done) {
-               ctx.bot.message_delete(message, channel,
-                                      [done](const dpp::confirmation_callback_t& cb) {
-                                          done(!cb.is_error());
-                                      });
-           })
+    return await_rest<bool>(ctx,
+                            [&](auto done) {
+                                ctx.bot.message_delete(
+                                    message, channel,
+                                    [done](const dpp::confirmation_callback_t& cb) {
+                                        done(!cb.is_error());
+                                    });
+                            })
         .value_or(false);
 }
 
 bool delete_bulk(JobContext& ctx, dpp::snowflake channel,
                  const std::vector<dpp::snowflake>& ids) {
-    return await_rest<bool>(ctx, [&](auto done) {
-               ctx.bot.message_delete_bulk(ids, channel,
-                                           [done](const dpp::confirmation_callback_t& cb) {
-                                               done(!cb.is_error());
-                                           });
-           })
+    return await_rest<bool>(ctx,
+                            [&](auto done) {
+                                ctx.bot.message_delete_bulk(
+                                    ids, channel,
+                                    [done](const dpp::confirmation_callback_t& cb) {
+                                        done(!cb.is_error());
+                                    });
+                            })
         .value_or(false);
 }
 
@@ -132,21 +135,21 @@ std::vector<dpp::snowflake> resolve_guild_channels(JobContext& ctx) {
     if (guild) {
         for (auto cid : guild->channels) {
             dpp::channel* ch = dpp::find_channel(cid);
-            if (ch && (ch->is_text_channel() || ch->is_news_channel())) channels.push_back(cid);
+            if (ch && (ch->is_text_channel() || ch->is_news_channel()))
+                channels.push_back(cid);
         }
     }
     // Active threads (archived threads are out of scope for v1).
     auto threads = await_rest<std::vector<dpp::snowflake>>(ctx, [&](auto done) {
-        ctx.bot.threads_get_active(ctx.guild_id,
-                                   [done](const dpp::confirmation_callback_t& cb) {
-                                       std::vector<dpp::snowflake> t;
-                                       if (!cb.is_error()) {
-                                           const auto& at =
-                                               std::get<dpp::active_threads>(cb.value);
-                                           for (const auto& [id, info] : at) t.push_back(id);
-                                       }
-                                       done(std::move(t));
-                                   });
+        ctx.bot.threads_get_active(
+            ctx.guild_id, [done](const dpp::confirmation_callback_t& cb) {
+                std::vector<dpp::snowflake> t;
+                if (!cb.is_error()) {
+                    const auto& at = std::get<dpp::active_threads>(cb.value);
+                    for (const auto& [id, info] : at) t.push_back(id);
+                }
+                done(std::move(t));
+            });
     });
     if (threads) channels.insert(channels.end(), threads->begin(), threads->end());
     return channels;
@@ -183,8 +186,7 @@ void run_purge_scan(JobContext& ctx) {
     for (auto channel : channels) {
         if (ctx.cancelled()) break;
 
-        std::uint64_t before =
-            ctx.load_cursor(channel).value_or(p.to_id ? p.to_id : 0);
+        std::uint64_t before = ctx.load_cursor(channel).value_or(p.to_id ? p.to_id : 0);
         if (before == kChannelDone) continue; // finished on a previous run
 
         bool done = false;
@@ -218,14 +220,17 @@ void run_purge_scan(JobContext& ctx) {
                     auto created_ms =
                         static_cast<std::int64_t>(m.id.get_creation_time() * 1000.0);
                     ctx.db
-                        .prepare("INSERT OR IGNORE INTO purge_matches"
-                                 "(scan_job_id, channel_id, message_id, created_at, deleted, "
-                                 "author_id, content) VALUES(?1,?2,?3,?4,0,?5,?6)")
+                        .prepare(
+                            "INSERT OR IGNORE INTO purge_matches"
+                            "(scan_job_id, channel_id, message_id, created_at, deleted, "
+                            "author_id, content) VALUES(?1,?2,?3,?4,0,?5,?6)")
                         .bind(1, ctx.job_id)
-                        .bind(2, static_cast<std::int64_t>(static_cast<std::uint64_t>(channel)))
+                        .bind(2,
+                              static_cast<std::int64_t>(static_cast<std::uint64_t>(channel)))
                         .bind(3, static_cast<std::int64_t>(mid))
                         .bind(4, created_ms)
-                        .bind(5, static_cast<std::int64_t>(static_cast<std::uint64_t>(m.author.id)))
+                        .bind(5, static_cast<std::int64_t>(
+                                     static_cast<std::uint64_t>(m.author.id)))
                         .bind(6, m.content)
                         .step();
                     ++matched;
@@ -245,10 +250,9 @@ void run_purge_scan(JobContext& ctx) {
     if (pchan == 0) return;
 
     if (matched == 0) {
-        std::string note = inaccessible > 0
-                               ? " (" + std::to_string(inaccessible) +
-                                     " channel(s) skipped — missing permissions)"
-                               : "";
+        std::string note = inaccessible > 0 ? " (" + std::to_string(inaccessible) +
+                                                  " channel(s) skipped — missing permissions)"
+                                            : "";
         ctx.bot.message_create(dpp::message(
             dpp::snowflake(pchan), "🧹 No messages matched — nothing to delete." + note));
         return;
@@ -268,47 +272,46 @@ void run_purge_scan(JobContext& ctx) {
     std::int64_t est = static_cast<std::int64_t>(std::ceil(recent / 100.0)) + old;
 
     std::string range = (p.from_id || p.to_id) ? " in the given range" : "";
-    std::string skipped = inaccessible > 0
-                              ? "\n⚠️ " + std::to_string(inaccessible) +
-                                    " channel(s) skipped (missing permissions)."
-                              : "";
+    std::string skipped = inaccessible > 0 ? "\n⚠️ " + std::to_string(inaccessible) +
+                                                 " channel(s) skipped (missing permissions)."
+                                           : "";
 
-    dpp::message prompt(
-        dpp::snowflake(pchan),
-        "🧹 Found **" + std::to_string(matched) + "** matching message(s)" + range +
-            ".\nEstimated deletion time: **" + human_duration(est) + "**." + skipped +
-            "\n\n**Delete them?** This cannot be undone.");
-    prompt.add_component(dpp::component()
-                             .add_component(dpp::component()
-                                                .set_type(dpp::cot_button)
-                                                .set_label("Confirm delete")
-                                                .set_style(dpp::cos_danger)
-                                                .set_id("purge:confirm:" + std::to_string(ctx.job_id)))
-                             .add_component(dpp::component()
-                                                .set_type(dpp::cot_button)
-                                                .set_label("Export")
-                                                .set_style(dpp::cos_primary)
-                                                .set_id("purge:export:" + std::to_string(ctx.job_id)))
-                             .add_component(dpp::component()
-                                                .set_type(dpp::cot_button)
-                                                .set_label("Cancel")
-                                                .set_style(dpp::cos_secondary)
-                                                .set_id("purge:cancel:" + std::to_string(ctx.job_id))));
+    dpp::message prompt(dpp::snowflake(pchan),
+                        "🧹 Found **" + std::to_string(matched) + "** matching message(s)" +
+                            range + ".\nEstimated deletion time: **" + human_duration(est) +
+                            "**." + skipped + "\n\n**Delete them?** This cannot be undone.");
+    prompt.add_component(
+        dpp::component()
+            .add_component(dpp::component()
+                               .set_type(dpp::cot_button)
+                               .set_label("Confirm delete")
+                               .set_style(dpp::cos_danger)
+                               .set_id("purge:confirm:" + std::to_string(ctx.job_id)))
+            .add_component(dpp::component()
+                               .set_type(dpp::cot_button)
+                               .set_label("Export")
+                               .set_style(dpp::cos_primary)
+                               .set_id("purge:export:" + std::to_string(ctx.job_id)))
+            .add_component(dpp::component()
+                               .set_type(dpp::cot_button)
+                               .set_label("Cancel")
+                               .set_style(dpp::cos_secondary)
+                               .set_id("purge:cancel:" + std::to_string(ctx.job_id))));
     ctx.bot.message_create(prompt);
 }
 
 // --- Delete job -------------------------------------------------------------
 
 void mark_deleted(JobContext& ctx, std::int64_t scan_job_id, std::uint64_t message_id) {
-    ctx.db
-        .prepare("UPDATE purge_matches SET deleted=1 WHERE scan_job_id=?1 AND message_id=?2")
+    ctx.db.prepare("UPDATE purge_matches SET deleted=1 WHERE scan_job_id=?1 AND message_id=?2")
         .bind(1, scan_job_id)
         .bind(2, static_cast<std::int64_t>(message_id))
         .step();
 }
 
 void run_purge_delete(JobContext& ctx) {
-    std::int64_t scan_job_id = nlohmann::json::parse(ctx.params).at("scan_job_id").get<std::int64_t>();
+    std::int64_t scan_job_id =
+        nlohmann::json::parse(ctx.params).at("scan_job_id").get<std::int64_t>();
 
     std::int64_t total = 0;
     {
@@ -325,8 +328,9 @@ void run_purge_delete(JobContext& ctx) {
     // Distinct channels with pending matches.
     std::vector<std::uint64_t> channels;
     {
-        auto stmt = ctx.db.prepare("SELECT DISTINCT channel_id FROM purge_matches "
-                                   "WHERE scan_job_id=?1 AND deleted=0");
+        auto stmt = ctx.db.prepare(
+            "SELECT DISTINCT channel_id FROM purge_matches "
+            "WHERE scan_job_id=?1 AND deleted=0");
         stmt.bind(1, scan_job_id);
         while (stmt.step()) channels.push_back(static_cast<std::uint64_t>(stmt.column_int(0)));
     }
@@ -347,12 +351,14 @@ void run_purge_delete(JobContext& ctx) {
                     .bind(2, static_cast<std::int64_t>(ch64))
                     .bind(3, threshold);
                 while (stmt.step())
-                    batch.push_back(dpp::snowflake(static_cast<std::uint64_t>(stmt.column_int(0))));
+                    batch.push_back(
+                        dpp::snowflake(static_cast<std::uint64_t>(stmt.column_int(0))));
             }
             if (batch.empty()) break;
 
             if (batch.size() >= 2 && delete_bulk(ctx, channel, batch)) {
-                for (auto id : batch) mark_deleted(ctx, scan_job_id, static_cast<std::uint64_t>(id));
+                for (auto id : batch)
+                    mark_deleted(ctx, scan_job_id, static_cast<std::uint64_t>(id));
                 actioned += static_cast<std::int64_t>(batch.size());
             } else {
                 // Single message, or bulk failed — fall back to per-message.
@@ -388,9 +394,8 @@ void run_purge_delete(JobContext& ctx) {
 } // namespace
 
 dpp::slashcommand Purge::definition(dpp::snowflake app_id) const {
-    dpp::slashcommand sc(name(),
-                         "Bulk-delete messages by keyword, author, pattern, age, and more",
-                         app_id);
+    dpp::slashcommand sc(
+        name(), "Bulk-delete messages by keyword, author, pattern, age, and more", app_id);
     sc.set_default_permissions(dpp::p_manage_messages);
 
     // Filters shared by both subcommands. All optional; at least one required.
@@ -504,9 +509,9 @@ void Purge::handle(const dpp::slashcommand_t& event) const {
             option_as<dpp::snowflake>(sub, "target").value_or(event.command.channel_id));
     }
 
-    auto job_id = services_->jobs.enqueue(event.command.guild_id, "purge_scan",
-                                          encode_params(p), event.command.channel_id,
-                                          event.command.usr.id);
+    auto job_id =
+        services_->jobs.enqueue(event.command.guild_id, "purge_scan", encode_params(p),
+                                event.command.channel_id, event.command.usr.id);
     if (!job_id) {
         event.reply(dpp::message("A bulk job is already running for this server — "
                                  "wait for it to finish.")
@@ -575,12 +580,14 @@ void Purge::handle_button(const dpp::button_click_t& event) const {
             std::string content = stmt.column_text(4);
 
             char when[24] = "?";
-            if (std::tm* g = std::gmtime(&t)) std::strftime(when, sizeof(when), "%Y-%m-%d %H:%M", g);
+            if (std::tm* g = std::gmtime(&t))
+                std::strftime(when, sizeof(when), "%Y-%m-%d %H:%M", g);
             dpp::channel* c = dpp::find_channel(dpp::snowflake(chan));
             std::string cname = c ? "#" + c->name : std::to_string(chan);
 
-            body += "[" + std::string(when) + "] " + cname + " user:" + std::to_string(author) +
-                    " msg:" + std::to_string(mid) + "\n" + content + "\n\n";
+            body += "[" + std::string(when) + "] " + cname +
+                    " user:" + std::to_string(author) + " msg:" + std::to_string(mid) + "\n" +
+                    content + "\n\n";
             ++count;
         }
         if (count == 0) {
@@ -596,8 +603,9 @@ void Purge::handle_button(const dpp::button_click_t& event) const {
 
     nlohmann::json params;
     params["scan_job_id"] = scan_job_id;
-    auto del_id = services_->jobs.enqueue(event.command.guild_id, "purge_delete", params.dump(),
-                                          event.command.channel_id, event.command.usr.id);
+    auto del_id =
+        services_->jobs.enqueue(event.command.guild_id, "purge_delete", params.dump(),
+                                event.command.channel_id, event.command.usr.id);
     if (!del_id) {
         event.reply(dpp::message("Another job is running for this server — try again shortly.")
                         .set_flags(dpp::m_ephemeral));

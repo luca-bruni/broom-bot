@@ -105,3 +105,36 @@ jobs:
             echo "Expected clean config-error exit (1), got $code"
             exit 1
           fi
+
+  # Runs the DPP-free unit tests under AddressSanitizer + UBSan. BB_BUILD_BOT=OFF
+  # skips the bot target (and the whole DPP dependency), so this stays fast and
+  # needs no cache. Catches memory errors and UB that a normal build hides.
+  sanitize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (ASan + UBSan, tests only)
+        run: >
+          cmake -B build-san -DBB_BUILD_BOT=OFF -DBB_BUILD_TYPE=Debug
+          -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer"
+
+      - name: Build tests
+        run: cmake --build build-san --parallel 4
+
+      - name: Unit tests (sanitized)
+        run: ./build-san/broom_tests
+
+  # Enforces the committed .clang-format. Fix violations locally with:
+  #   clang-format -i src/**/*.{cpp,hpp} tests/*.cpp   (or your editor's formatter)
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: clang-format check
+        run: |
+          clang-format --version
+          find src tests -name '*.cpp' -o -name '*.hpp' | xargs clang-format --dry-run --Werror

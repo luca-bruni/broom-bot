@@ -45,10 +45,10 @@ TEST_CASE("parse_custom_emoji: whitespace tolerated") {
 TEST_CASE("parse_custom_emoji: invalid rejected") {
     CHECK_FALSE(parse_custom_emoji("😀").has_value());
     CHECK_FALSE(parse_custom_emoji("smile").has_value());
-    CHECK_FALSE(parse_custom_emoji("<:smile:>").has_value());  // no id
-    CHECK_FALSE(parse_custom_emoji("<::123>").has_value());    // no name
-    CHECK_FALSE(parse_custom_emoji("<:sm:abc>").has_value());  // non-numeric id
-    CHECK_FALSE(parse_custom_emoji("<:x:1>").has_value());     // name too short
+    CHECK_FALSE(parse_custom_emoji("<:smile:>").has_value()); // no id
+    CHECK_FALSE(parse_custom_emoji("<::123>").has_value());   // no name
+    CHECK_FALSE(parse_custom_emoji("<:sm:abc>").has_value()); // non-numeric id
+    CHECK_FALSE(parse_custom_emoji("<:x:1>").has_value());    // name too short
     CHECK_FALSE(parse_custom_emoji("").has_value());
 }
 

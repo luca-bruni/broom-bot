@@ -67,17 +67,19 @@ const std::vector<std::string>& job_schema() {
 
 // --- JobContext -------------------------------------------------------------
 
-JobContext::JobContext(JobRunner& runner, dpp::cluster& bot_ref, Db& db_ref,
-                       std::int64_t id, dpp::snowflake guild, std::string params_str)
-    : bot(bot_ref), db(db_ref), job_id(id), guild_id(guild),
-      params(std::move(params_str)), runner_(runner) {}
+JobContext::JobContext(JobRunner& runner, dpp::cluster& bot_ref, Db& db_ref, std::int64_t id,
+                       dpp::snowflake guild, std::string params_str)
+    : bot(bot_ref),
+      db(db_ref),
+      job_id(id),
+      guild_id(guild),
+      params(std::move(params_str)),
+      runner_(runner) {}
 
-bool JobContext::cancelled() const {
-    return runner_.job_cancelled(job_id);
-}
+bool JobContext::cancelled() const { return runner_.job_cancelled(job_id); }
 
-void JobContext::progress(std::int64_t scanned, std::int64_t matched,
-                          std::int64_t actioned, const std::string& phase) {
+void JobContext::progress(std::int64_t scanned, std::int64_t matched, std::int64_t actioned,
+                          const std::string& phase) {
     db.prepare("UPDATE jobs SET scanned=?1, matched=?2, actioned=?3 WHERE id=?4")
         .bind(1, scanned)
         .bind(2, matched)
@@ -89,18 +91,18 @@ void JobContext::progress(std::int64_t scanned, std::int64_t matched,
     if (now - last_edit_ < std::chrono::seconds(3)) return;
     last_edit_ = now;
 
-    runner_.edit_progress_message(
-        job_id,
-        "⏳ Job #" + std::to_string(job_id) + " — " + phase + "\n" +
-            "Scanned: " + std::to_string(scanned) +
-            " | Matched: " + std::to_string(matched) +
-            " | Actioned: " + std::to_string(actioned),
-        false);
+    runner_.edit_progress_message(job_id,
+                                  "⏳ Job #" + std::to_string(job_id) + " — " + phase + "\n" +
+                                      "Scanned: " + std::to_string(scanned) +
+                                      " | Matched: " + std::to_string(matched) +
+                                      " | Actioned: " + std::to_string(actioned),
+                                  false);
 }
 
 void JobContext::save_cursor(dpp::snowflake channel_id, std::uint64_t cursor_id) {
-    db.prepare("INSERT INTO job_cursors(job_id, channel_id, cursor_id) VALUES(?1,?2,?3) "
-               "ON CONFLICT(job_id, channel_id) DO UPDATE SET cursor_id=excluded.cursor_id")
+    db.prepare(
+          "INSERT INTO job_cursors(job_id, channel_id, cursor_id) VALUES(?1,?2,?3) "
+          "ON CONFLICT(job_id, channel_id) DO UPDATE SET cursor_id=excluded.cursor_id")
         .bind(1, job_id)
         .bind(2, static_cast<std::int64_t>(static_cast<std::uint64_t>(channel_id)))
         .bind(3, static_cast<std::int64_t>(cursor_id))
@@ -110,8 +112,8 @@ void JobContext::save_cursor(dpp::snowflake channel_id, std::uint64_t cursor_id)
 std::optional<std::uint64_t> JobContext::load_cursor(dpp::snowflake channel_id) {
     auto stmt =
         db.prepare("SELECT cursor_id FROM job_cursors WHERE job_id=?1 AND channel_id=?2");
-    stmt.bind(1, job_id)
-        .bind(2, static_cast<std::int64_t>(static_cast<std::uint64_t>(channel_id)));
+    stmt.bind(1, job_id).bind(
+        2, static_cast<std::int64_t>(static_cast<std::uint64_t>(channel_id)));
     if (!stmt.step()) return std::nullopt;
     return static_cast<std::uint64_t>(stmt.column_int(0));
 }
@@ -137,14 +139,16 @@ std::optional<std::int64_t> JobRunner::enqueue(dpp::snowflake guild_id,
                                                dpp::snowflake started_by) {
     std::lock_guard lock(mutex_);
 
-    auto busy = db_.prepare("SELECT COUNT(*) FROM jobs WHERE guild_id=?1 AND "
-                            "status IN ('queued','running')");
+    auto busy = db_.prepare(
+        "SELECT COUNT(*) FROM jobs WHERE guild_id=?1 AND "
+        "status IN ('queued','running')");
     busy.bind(1, static_cast<std::int64_t>(static_cast<std::uint64_t>(guild_id)));
     busy.step();
     if (busy.column_int(0) > 0) return std::nullopt;
 
-    db_.prepare("INSERT INTO jobs(guild_id, kind, params, started_by, progress_channel, "
-                "created_at) VALUES(?1,?2,?3,?4,?5,?6)")
+    db_.prepare(
+           "INSERT INTO jobs(guild_id, kind, params, started_by, progress_channel, "
+           "created_at) VALUES(?1,?2,?3,?4,?5,?6)")
         .bind(1, static_cast<std::int64_t>(static_cast<std::uint64_t>(guild_id)))
         .bind(2, kind)
         .bind(3, params)
@@ -186,12 +190,13 @@ void JobRunner::start() {
         auto [ptr, ec] = std::from_chars(id_begin, id_end, job_id);
         if (ec != std::errc{} || ptr != id_end) return;
 
-        auto stmt = db_.prepare("SELECT started_by FROM jobs WHERE id=?1 AND "
-                                "status IN ('queued','running')");
+        auto stmt = db_.prepare(
+            "SELECT started_by FROM jobs WHERE id=?1 AND "
+            "status IN ('queued','running')");
         stmt.bind(1, job_id);
         if (!stmt.step()) {
-            event.reply(dpp::message("That job is no longer active.")
-                            .set_flags(dpp::m_ephemeral));
+            event.reply(
+                dpp::message("That job is no longer active.").set_flags(dpp::m_ephemeral));
             return;
         }
         if (static_cast<std::uint64_t>(stmt.column_int(0)) !=
@@ -253,8 +258,7 @@ void JobRunner::run_one(std::int64_t job_id) {
         finish(job_id, ctx.cancelled() ? "cancelled" : "done", "");
     } catch (const std::exception& e) {
         finish(job_id, "failed", e.what());
-        bot_.log(dpp::ll_error,
-                 "Job #" + std::to_string(job_id) + " failed: " + e.what());
+        bot_.log(dpp::ll_error, "Job #" + std::to_string(job_id) + " failed: " + e.what());
     }
 
     {
@@ -302,8 +306,7 @@ void JobRunner::finish(std::int64_t job_id, const std::string& status,
 
     std::int64_t scanned = 0, matched = 0, actioned = 0;
     {
-        auto stmt =
-            db_.prepare("SELECT scanned, matched, actioned FROM jobs WHERE id=?1");
+        auto stmt = db_.prepare("SELECT scanned, matched, actioned FROM jobs WHERE id=?1");
         stmt.bind(1, job_id);
         if (stmt.step()) {
             scanned = stmt.column_int(0);
@@ -316,8 +319,7 @@ void JobRunner::finish(std::int64_t job_id, const std::string& status,
     std::string summary =
         emoji + " Job #" + std::to_string(job_id) + " " + status +
         (note.empty() ? "" : " — " + note) + "\nScanned: " + std::to_string(scanned) +
-        " | Matched: " + std::to_string(matched) +
-        " | Actioned: " + std::to_string(actioned);
+        " | Matched: " + std::to_string(matched) + " | Actioned: " + std::to_string(actioned);
 
     // Update the existing progress message in place (no duplicate post).
     edit_progress_message(job_id, summary, true);
@@ -325,8 +327,7 @@ void JobRunner::finish(std::int64_t job_id, const std::string& status,
 
 void JobRunner::edit_progress_message(std::int64_t job_id, const std::string& text,
                                       bool remove_button) {
-    auto stmt = db_.prepare(
-        "SELECT progress_channel, progress_message FROM jobs WHERE id=?1");
+    auto stmt = db_.prepare("SELECT progress_channel, progress_message FROM jobs WHERE id=?1");
     stmt.bind(1, job_id);
     if (!stmt.step() || stmt.column_is_null(1)) return;
 

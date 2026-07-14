@@ -13,8 +13,7 @@ inline constexpr std::uint32_t kEmbedColor = 0x5865F2;
 
 // Discord relative timestamp ("<t:...:R>") for a snowflake's creation time.
 inline std::string created_relative(dpp::snowflake id) {
-    return "<t:" + std::to_string(static_cast<std::uint64_t>(id.get_creation_time())) +
-           ":R>";
+    return "<t:" + std::to_string(static_cast<std::uint64_t>(id.get_creation_time())) + ":R>";
 }
 
 // Guard for guild-only commands. Replies ephemerally and returns false when

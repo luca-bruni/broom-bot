@@ -13,7 +13,8 @@ dpp::slashcommand EightBall::definition(dpp::snowflake app_id) const {
 void EightBall::handle(const dpp::slashcommand_t& event) const {
     std::string question = std::get<std::string>(event.get_parameter("question"));
     const auto& answers = eightball_answers();
-    const auto& pick = answers[static_cast<std::size_t>(rng_int(0, static_cast<int>(answers.size()) - 1))];
+    const auto& pick =
+        answers[static_cast<std::size_t>(rng_int(0, static_cast<int>(answers.size()) - 1))];
     event.reply("🎱 **Q:** " + question + "\n**A:** " + pick);
 }
 

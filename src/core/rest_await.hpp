@@ -26,10 +26,8 @@ template <typename T, typename Start>
 std::optional<T> await_rest(const JobContext& ctx, Start&& start) {
     auto promise = std::make_shared<std::promise<T>>();
     auto future = promise->get_future();
-    std::forward<Start>(start)(
-        [promise](T result) { promise->set_value(std::move(result)); });
-    while (future.wait_for(std::chrono::milliseconds(200)) !=
-           std::future_status::ready) {
+    std::forward<Start>(start)([promise](T result) { promise->set_value(std::move(result)); });
+    while (future.wait_for(std::chrono::milliseconds(200)) != std::future_status::ready) {
         if (ctx.cancelled()) return std::nullopt;
     }
     return future.get();
