@@ -56,7 +56,7 @@ void handle_message(Services& services, const dpp::slashcommand_t& event,
     std::int64_t id = services.db.last_insert_id();
 
     event.reply(dpp::message("📨 Scheduled message `#" + std::to_string(id) +
-                             "` — posts in <#" + std::to_string(channel) +
+                             "` - posts in <#" + std::to_string(channel) +
                              "> <t:" + std::to_string(due_at) + ":R>.")
                     .set_flags(dpp::m_ephemeral));
 }
@@ -81,7 +81,7 @@ void handle_event(Services&, const dpp::slashcommand_t& event,
     auto duration = parse_duration_seconds(duration_raw);
     if (!duration || *duration < kEventMinDurationSeconds ||
         *duration > kEventMaxDurationSeconds) {
-        event.reply(dpp::message("Invalid `duration` — between `1m` and `7d`, e.g. `90m`.")
+        event.reply(dpp::message("Invalid `duration` - between `1m` and `7d`, e.g. `90m`.")
                         .set_flags(dpp::m_ephemeral));
         return;
     }
@@ -106,7 +106,7 @@ void handle_event(Services&, const dpp::slashcommand_t& event,
                     return;
                 }
                 event.edit_original_response(
-                    dpp::message("📅 Event **" + ev.name + "** created — starts <t:" +
+                    dpp::message("📅 Event **" + ev.name + "** created - starts <t:" +
                                  std::to_string(ev.scheduled_start_time) + ":R>."));
             });
     });

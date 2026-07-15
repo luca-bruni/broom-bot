@@ -3,7 +3,7 @@
 [![build](https://github.com/luca-bruni/broom-bot/actions/workflows/build.yml/badge.svg)](https://github.com/luca-bruni/broom-bot/actions/workflows/build.yml)
 
 A general-purpose Discord bot in C++20, built on [D++ (DPP)](https://github.com/brainboxdotcc/DPP).
-Builds from source on macOS, Linux, and Windows — verified by CI on every push.
+Builds from source on macOS, Linux, and Windows - verified by CI on every push.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for how the project is structured and how to
 add commands.
@@ -64,7 +64,7 @@ test server instantly instead of propagating globally (~1 h).
 
 | Command | Description |
 |---|---|
-| `/remind set in message` | Set a reminder, e.g. `in:2h` — pings you in the channel when due |
+| `/remind set in message` | Set a reminder, e.g. `in:2h` - pings you in the channel when due |
 | `/remind list` | List your pending reminders |
 | `/remind cancel id` | Cancel one of your reminders |
 | `/schedule message …` | Post a message as the bot at a future time (Manage Server) |

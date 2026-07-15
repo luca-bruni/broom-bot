@@ -54,7 +54,7 @@ void Roll::handle(const dpp::slashcommand_t& event) const {
     int count = 0, sides = 0;
     if (!parse_dice(spec, count, sides)) {
         event.reply(dpp::message("Invalid dice spec `" + spec +
-                                 "` — use NdM, e.g. `2d6` (max " + std::to_string(max_count) +
+                                 "` - use NdM, e.g. `2d6` (max " + std::to_string(max_count) +
                                  " dice, " + std::to_string(max_sides) + " sides).")
                         .set_flags(dpp::m_ephemeral));
         return;

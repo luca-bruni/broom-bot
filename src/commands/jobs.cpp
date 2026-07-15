@@ -43,7 +43,7 @@ dpp::message list_message(Services& services, dpp::snowflake guild_id, int page)
         auto started_by = static_cast<std::uint64_t>(stmt.column_int(6));
         std::int64_t created = stmt.column_int(7);
 
-        lines.push_back("`#" + std::to_string(id) + "` " + kind + " — " +
+        lines.push_back("`#" + std::to_string(id) + "` " + kind + " - " +
                         status_emoji(status) + " " + status + " · " + std::to_string(scanned) +
                         "/" + std::to_string(matched) + "/" + std::to_string(actioned) +
                         " · <@" + std::to_string(started_by) +

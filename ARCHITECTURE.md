@@ -101,7 +101,7 @@ data/                 Runtime SQLite database (gitignored; DATA_DIR)
   forward-declares `sqlite3`, so `sqlite3.h` is included in exactly one TU.
 - **Migrations** are a single global, append-only list assembled in `main`
   (`job_schema()` + each feature's schema), applied by `Db::migrate()` which
-  tracks `PRAGMA user_version`. NEVER reorder or insert in the middle — append
+  tracks `PRAGMA user_version`. NEVER reorder or insert in the middle - append
   new steps at the end, even core ones.
 - Database path: `DATA_DIR` (default `./data/`, gitignored). It holds the job
   queue, per-guild settings, and feature tables. It lives only on the host
@@ -136,21 +136,21 @@ Long-running work (history scans, bulk deletes) can take hours, far past the
 Not everything timed belongs in the JobRunner: jobs are exclusive per guild,
 so a reminder queued for tomorrow would block `/purge` (and a running purge
 would delay deliveries). Timed deliveries instead go through `ScheduleService`
-(`commands/schedule.hpp`) — its own polling thread (~5s) over the `reminders`
+(`commands/schedule.hpp`) - its own polling thread (~5s) over the `reminders`
 table, dispatched by `kind` (`reminder` from /remind, `message` from
 /schedule message), fire-and-forget delivery, at-most-once semantics (rows are
 marked sent before the REST call, so a crash drops rather than duplicates).
-`/schedule event` creates a native Discord scheduled event immediately —
+`/schedule event` creates a native Discord scheduled event immediately -
 Discord handles that countdown itself, so no row is stored.
 
 ## Config
 
 - `core/config` parses `.env` (KEY=VALUE, `#` comments) into a map, then overlays
   real environment variables (env wins, enabling container/CI overrides).
-- **Never calls `setenv`** — it doesn't exist on MSVC. Config is passed by value.
-- Keys: `BOT_TOKEN` (required); `DEV_GUILD_ID` (optional — guild-scoped instant
+- **Never calls `setenv`** - it doesn't exist on MSVC. Config is passed by value.
+- Keys: `BOT_TOKEN` (required); `DEV_GUILD_ID` (optional - guild-scoped instant
   command registration for development, else global ~1h propagation);
-  `DATA_DIR` (optional — SQLite location, default `./data/`).
+  `DATA_DIR` (optional - SQLite location, default `./data/`).
 
 ## Build
 
@@ -159,17 +159,17 @@ CMake ≥ 3.20, C++20. Build type defaults to Release on single-config generator
 building only the DPP-free unit tests (used by the sanitizer CI job).
 Two modes via `BB_BUILD_DPP` (default `OFF`):
 
-- **`-DBB_BUILD_DPP=ON`** — builds the DPP submodule and installs it to
+- **`-DBB_BUILD_DPP=ON`** - builds the DPP submodule and installs it to
   `external/DPP/install`. Use on first build or after bumping the submodule.
   Requires `git submodule update --init --recursive` first.
-- **`OFF`** — links the pre-built DPP via `find_package(dpp CONFIG)`. An external
+- **`OFF`** - links the pre-built DPP via `find_package(dpp CONFIG)`. An external
   DPP install can be substituted with `-DCMAKE_PREFIX_PATH=...`.
   **Quirk**: DPP's exported target omits `INTERFACE_INCLUDE_DIRECTORIES`; our
   CMakeLists patches the include path onto `dpp::dpp` (handling Windows's
   versioned `include/dpp-X.Y` layout).
   **Quirk (Windows)**: `OPENSSL_ROOT_DIR` is pinned to DPP's bundled OpenSSL 1.1
-  SDK (`external/DPP/win32`) so `find_package(OpenSSL)` — invoked transitively by
-  DPP's package config — can't latch onto an unrelated OpenSSL on PATH (e.g.
+  SDK (`external/DPP/win32`) so `find_package(OpenSSL)` - invoked transitively by
+  DPP's package config - can't latch onto an unrelated OpenSSL on PATH (e.g.
   PostgreSQL's 3.x), which would be ABI-incompatible with `dpp.dll` and the
   `libssl-1_1`/`libcrypto-1_1` DLLs copied next to the exe.
 
@@ -186,12 +186,12 @@ cmake --build build
 ## Tests
 
 Vendored **doctest** (`external/doctest/`, header-only). `tests/` cover the pure,
-decision-making logic — parsers (`parse_duration_seconds`, `parse_date_ms`,
+decision-making logic - parsers (`parse_duration_seconds`, `parse_date_ms`,
 `ms_to_snowflake`) and filter predicates (`message_matches` via the DPP-free
 `MessageView`). The pattern: extract a command's pure logic into a testable
 header so it can be exercised without a live Discord connection; the thin
 DPP glue (REST calls firing, gateway routing) is left to the CI smoke test and
-manual testing. **Every new command adds tests** — build with `broom_tests`
+manual testing. **Every new command adds tests** - build with `broom_tests`
 (on by default; `-DBB_BUILD_TESTS=OFF` to skip).
 
 ## CI
@@ -210,7 +210,7 @@ take ~1–2 min. Master is branch-protected (the three build checks plus
 Two more workflows: `release.yml` builds all three platforms on a `v*` tag and
 attaches archives to a GitHub Release (Linux built on ubuntu-22.04 for older
 glibc compatibility); `dpp-check.yml` runs monthly and opens an issue if the
-pinned DPP submodule is behind DPP's latest release — bumps stay deliberate
+pinned DPP submodule is behind DPP's latest release - bumps stay deliberate
 because each one costs a cold DPP rebuild per platform.
 
 ## Conventions
@@ -222,8 +222,8 @@ because each one costs a cold DPP rebuild per platform.
 - `core/` must not depend on `commands/`; commands depend only on `core/`, DPP,
   and (if job-backed) the vendored SQLite via `core/db`.
 - Logging goes through `bot.on_log` (`dpp::utility::cout_logger`), not stdout.
-- Secrets only in `.env` / environment — never committed, never logged.
-- Handlers run on the cluster's event threads: no blocking work — defer to a
+- Secrets only in `.env` / environment - never committed, never logged.
+- Handlers run on the cluster's event threads: no blocking work - defer to a
   background job or DPP's async APIs.
 - Keep this document current: fold ARCHITECTURE.md updates into the feature PR
   that changes a subsystem.

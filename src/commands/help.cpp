@@ -11,7 +11,7 @@ dpp::slashcommand Help::definition(dpp::snowflake app_id) const {
 void Help::handle(const dpp::slashcommand_t& event) const {
     std::string body;
     for (const auto& entry : services_->catalog.entries) {
-        body += "**/" + entry.name + "** — " + entry.description + "\n";
+        body += "**/" + entry.name + "** - " + entry.description + "\n";
     }
     if (body.empty()) body = "No commands registered.";
 

@@ -7,18 +7,18 @@ namespace {
 // Dispatch guard: a throwing handler must not unwind DPP's event thread.
 // Log it and answer with an ephemeral error so the user isn't left with a
 // silently "thinking…" interaction. The reply may itself fail if the handler
-// already replied before throwing — DPP logs that; nothing more to do.
+// already replied before throwing - DPP logs that; nothing more to do.
 template <typename Event, typename Fn>
 void guarded(const Event& event, const std::string& what, Fn&& fn) {
     try {
         std::forward<Fn>(fn)();
     } catch (const std::exception& e) {
         event.owner->log(dpp::ll_error, what + " threw: " + e.what());
-        event.reply(dpp::message("⚠️ Something went wrong — the error has been logged.")
+        event.reply(dpp::message("⚠️ Something went wrong - the error has been logged.")
                         .set_flags(dpp::m_ephemeral));
     } catch (...) {
         event.owner->log(dpp::ll_error, what + " threw a non-standard exception");
-        event.reply(dpp::message("⚠️ Something went wrong — the error has been logged.")
+        event.reply(dpp::message("⚠️ Something went wrong - the error has been logged.")
                         .set_flags(dpp::m_ephemeral));
     }
 }
@@ -49,12 +49,12 @@ void CommandRegistry::attach(dpp::cluster& bot, dpp::snowflake dev_guild_id) {
         });
     });
 
-    // custom_id convention: "<command>:<action>" — route to the owning command.
+    // custom_id convention: "<command>:<action>" - route to the owning command.
     bot.on_button_click([this](const dpp::button_click_t& event) {
         auto owner = event.custom_id.substr(0, event.custom_id.find(':'));
         auto it = commands_.find(owner);
         if (it == commands_.end()) {
-            // Not ours — other subsystems (e.g. JobRunner) attach their own
+            // Not ours - other subsystems (e.g. JobRunner) attach their own
             // button handlers on this event.
             event.owner->log(dpp::ll_debug, "Button not command-routed: " + event.custom_id);
             return;

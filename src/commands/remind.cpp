@@ -44,7 +44,7 @@ void handle_set(Services& services, const dpp::slashcommand_t& event,
     if (pending.column_int(0) >= kRemindMaxPendingPerUser) {
         event.reply(dpp::message("You already have " +
                                  std::to_string(kRemindMaxPendingPerUser) +
-                                 " pending reminders — cancel one first (/remind list).")
+                                 " pending reminders - cancel one first (/remind list).")
                         .set_flags(dpp::m_ephemeral));
         return;
     }
@@ -64,7 +64,7 @@ void handle_set(Services& services, const dpp::slashcommand_t& event,
     std::int64_t id = services.db.last_insert_id();
 
     event.reply(dpp::message("⏰ Reminder `#" + std::to_string(id) +
-                             "` set — I'll ping "
+                             "` set - I'll ping "
                              "you here <t:" +
                              std::to_string(due_at) + ":R>.")
                     .set_flags(dpp::m_ephemeral));
@@ -80,7 +80,7 @@ dpp::message list_message(Services& services, dpp::snowflake user_id, int page) 
     std::vector<std::string> lines;
     while (stmt.step()) {
         lines.push_back("`#" + std::to_string(stmt.column_int(0)) + "` <t:" +
-                        std::to_string(stmt.column_int(2)) + ":R> — " + stmt.column_text(1));
+                        std::to_string(stmt.column_int(2)) + ":R> - " + stmt.column_text(1));
     }
 
     PageView view = paginate(lines, page);
