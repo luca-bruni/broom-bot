@@ -50,7 +50,7 @@ int main() {
     broom::Db db(config.data_dir + "/broom.db");
 
     // Single global, append-only migration list (schema versioning is one
-    // PRAGMA user_version counter). NEVER reorder or insert in the middle —
+    // PRAGMA user_version counter). NEVER reorder or insert in the middle -
     // append new steps at the end, even core ones.
     std::vector<std::string> migrations = broom::job_schema();
     const auto& purge_steps = broom::commands::purge_schema();
@@ -131,7 +131,7 @@ int main() {
         while (!g_stop.load()) {
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
         }
-        bot.log(dpp::ll_info, "Signal received — shutting down cleanly");
+        bot.log(dpp::ll_info, "Signal received - shutting down cleanly");
         bot.shutdown();
     });
 

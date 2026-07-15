@@ -26,7 +26,7 @@ endif()
 option(BB_BUILD_DPP "Build the DPP submodule from source" OFF)
 
 # OFF skips the bot executable (and the DPP dependency entirely) and builds
-# only the DPP-free unit tests — used by the sanitizer CI job, where
+# only the DPP-free unit tests - used by the sanitizer CI job, where
 # instrumenting the tests is cheap but building DPP is not.
 option(BB_BUILD_BOT "Build the bot executable (requires DPP)" ON)
 
@@ -40,8 +40,8 @@ list(PREPEND CMAKE_PREFIX_PATH "${DPP_INSTALL_DIR}")
 
 # On Windows, pin OpenSSL to DPP's bundled 1.1 SDK (headers + import libs that
 # match the prebuilt dpp.dll and the libssl-1_1/libcrypto-1_1 DLLs shipped next
-# to the exe). Without this, find_package(OpenSSL) — invoked transitively by
-# DPP's package config — can latch onto an unrelated OpenSSL on PATH (e.g.
+# to the exe). Without this, find_package(OpenSSL) - invoked transitively by
+# DPP's package config - can latch onto an unrelated OpenSSL on PATH (e.g.
 # PostgreSQL's 3.x), which is ABI-incompatible with dpp.dll.
 if(WIN32 AND EXISTS "${DPP_SOURCE_DIR}/win32/lib/libssl.lib")
     set(OPENSSL_ROOT_DIR "${DPP_SOURCE_DIR}/win32" CACHE PATH "OpenSSL root (DPP bundled)" FORCE)
@@ -156,8 +156,8 @@ if(BB_BUILD_BOT AND WIN32)
             FILES_MATCHING PATTERN "*.dll")
 endif()
 
-# Unit tests (vendored doctest, header-only). Cover the pure logic — parsers and
-# filter predicates — that runs without a live Discord connection. New commands
+# Unit tests (vendored doctest, header-only). Cover the pure logic - parsers and
+# filter predicates - that runs without a live Discord connection. New commands
 # should extend these. Toggle off with -DBB_BUILD_TESTS=OFF.
 option(BB_BUILD_TESTS "Build unit tests" ON)
 if(BB_BUILD_TESTS)

@@ -251,10 +251,10 @@ void run_purge_scan(JobContext& ctx) {
 
     if (matched == 0) {
         std::string note = inaccessible > 0 ? " (" + std::to_string(inaccessible) +
-                                                  " channel(s) skipped — missing permissions)"
+                                                  " channel(s) skipped - missing permissions)"
                                             : "";
         ctx.bot.message_create(dpp::message(
-            dpp::snowflake(pchan), "🧹 No messages matched — nothing to delete." + note));
+            dpp::snowflake(pchan), "🧹 No messages matched - nothing to delete." + note));
         return;
     }
 
@@ -361,7 +361,7 @@ void run_purge_delete(JobContext& ctx) {
                     mark_deleted(ctx, scan_job_id, static_cast<std::uint64_t>(id));
                 actioned += static_cast<std::int64_t>(batch.size());
             } else {
-                // Single message, or bulk failed — fall back to per-message.
+                // Single message, or bulk failed - fall back to per-message.
                 for (auto id : batch) {
                     if (ctx.cancelled()) break;
                     if (delete_one(ctx, channel, id)) ++actioned;
@@ -456,7 +456,7 @@ void Purge::handle(const dpp::slashcommand_t& event) const {
         try {
             std::regex validate(p.pattern, std::regex::ECMAScript | std::regex::icase);
         } catch (const std::regex_error&) {
-            event.reply(dpp::message("Invalid `pattern` — not a valid regular expression.")
+            event.reply(dpp::message("Invalid `pattern` - not a valid regular expression.")
                             .set_flags(dpp::m_ephemeral));
             return;
         }
@@ -465,7 +465,7 @@ void Purge::handle(const dpp::slashcommand_t& event) const {
     if (auto from = get_string("from")) {
         std::uint64_t ms = 0;
         if (!parse_date_ms(*from, false, ms)) {
-            event.reply(dpp::message("Invalid `from` date — use YYYY-MM-DD.")
+            event.reply(dpp::message("Invalid `from` date - use YYYY-MM-DD.")
                             .set_flags(dpp::m_ephemeral));
             return;
         }
@@ -474,7 +474,7 @@ void Purge::handle(const dpp::slashcommand_t& event) const {
     if (auto to = get_string("to")) {
         std::uint64_t ms = 0;
         if (!parse_date_ms(*to, true, ms)) {
-            event.reply(dpp::message("Invalid `to` date — use YYYY-MM-DD.")
+            event.reply(dpp::message("Invalid `to` date - use YYYY-MM-DD.")
                             .set_flags(dpp::m_ephemeral));
             return;
         }
@@ -483,7 +483,7 @@ void Purge::handle(const dpp::slashcommand_t& event) const {
     if (auto older = get_string("older_than")) {
         auto secs = parse_duration_seconds(*older);
         if (!secs) {
-            event.reply(dpp::message("Invalid `older_than` — use e.g. `30d`, `6mo`, `1y`.")
+            event.reply(dpp::message("Invalid `older_than` - use e.g. `30d`, `6mo`, `1y`.")
                             .set_flags(dpp::m_ephemeral));
             return;
         }
@@ -513,20 +513,20 @@ void Purge::handle(const dpp::slashcommand_t& event) const {
         services_->jobs.enqueue(event.command.guild_id, "purge_scan", encode_params(p),
                                 event.command.channel_id, event.command.usr.id);
     if (!job_id) {
-        event.reply(dpp::message("A bulk job is already running for this server — "
+        event.reply(dpp::message("A bulk job is already running for this server - "
                                  "wait for it to finish.")
                         .set_flags(dpp::m_ephemeral));
         return;
     }
 
-    event.reply(dpp::message("🧹 Scanning for matches — progress will post in this channel. "
+    event.reply(dpp::message("🧹 Scanning for matches - progress will post in this channel. "
                              "You'll be asked to confirm before anything is deleted.")
                     .set_flags(dpp::m_ephemeral));
 }
 
 void Purge::handle_button(const dpp::button_click_t& event) const {
     // custom_id: "purge:<action>:<scan_job_id>" where action is confirm,
-    // export, or cancel. Parsed defensively — custom_ids arrive from clients.
+    // export, or cancel. Parsed defensively - custom_ids arrive from clients.
     auto first = event.custom_id.find(':');
     auto second = event.custom_id.find(':', first + 1);
     if (first == std::string::npos || second == std::string::npos) return;
@@ -561,7 +561,7 @@ void Purge::handle_button(const dpp::button_click_t& event) const {
             .bind(1, scan_job_id)
             .step();
         event.reply(dpp::ir_update_message,
-                    dpp::message("🚫 Purge cancelled — nothing was deleted."));
+                    dpp::message("🚫 Purge cancelled - nothing was deleted."));
         return;
     }
 
@@ -607,12 +607,12 @@ void Purge::handle_button(const dpp::button_click_t& event) const {
         services_->jobs.enqueue(event.command.guild_id, "purge_delete", params.dump(),
                                 event.command.channel_id, event.command.usr.id);
     if (!del_id) {
-        event.reply(dpp::message("Another job is running for this server — try again shortly.")
+        event.reply(dpp::message("Another job is running for this server - try again shortly.")
                         .set_flags(dpp::m_ephemeral));
         return;
     }
     event.reply(dpp::ir_update_message,
-                dpp::message("🗑️ Deleting matched messages — progress will post below."));
+                dpp::message("🗑️ Deleting matched messages - progress will post below."));
 }
 
 void register_purge_jobs(JobRunner& jobs, Db&) {

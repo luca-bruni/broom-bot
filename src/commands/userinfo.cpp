@@ -35,7 +35,7 @@ void Userinfo::handle(const dpp::slashcommand_t& event) const {
         }
         embed.add_field("Roles", std::to_string(member.get_roles().size()), true);
     } catch (const dpp::logic_exception&) {
-        // Not a member (e.g. DM context) — user-level fields only.
+        // Not a member (e.g. DM context) - user-level fields only.
     }
 
     event.reply(dpp::message().add_embed(embed));

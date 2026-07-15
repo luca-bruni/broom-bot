@@ -1,5 +1,5 @@
 # Monthly check: is the pinned DPP submodule behind DPP's latest release?
-# Opens (at most one) issue when behind — bumping stays a deliberate, human
+# Opens (at most one) issue when behind - bumping stays a deliberate, human
 # decision because each bump costs a cold DPP rebuild per platform in CI.
 name: dpp-check
 

@@ -16,7 +16,7 @@ public:
     // The slash command to register with Discord.
     virtual dpp::slashcommand definition(dpp::snowflake app_id) const = 0;
 
-    // Invoked on the cluster's event threads — must not block.
+    // Invoked on the cluster's event threads - must not block.
     virtual void handle(const dpp::slashcommand_t& event) const = 0;
 
     // Button clicks are routed here when the component's custom_id starts with

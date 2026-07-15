@@ -92,7 +92,7 @@ void JobContext::progress(std::int64_t scanned, std::int64_t matched, std::int64
     last_edit_ = now;
 
     runner_.edit_progress_message(job_id,
-                                  "⏳ Job #" + std::to_string(job_id) + " — " + phase + "\n" +
+                                  "⏳ Job #" + std::to_string(job_id) + " - " + phase + "\n" +
                                       "Scanned: " + std::to_string(scanned) +
                                       " | Matched: " + std::to_string(matched) +
                                       " | Actioned: " + std::to_string(actioned),
@@ -183,7 +183,7 @@ void JobRunner::start() {
         constexpr std::string_view prefix = "job:cancel:";
         if (event.custom_id.rfind(prefix, 0) != 0) return;
 
-        // Parsed defensively — custom_ids arrive from clients.
+        // Parsed defensively - custom_ids arrive from clients.
         std::int64_t job_id = 0;
         const char* id_begin = event.custom_id.data() + prefix.size();
         const char* id_end = event.custom_id.data() + event.custom_id.size();
@@ -214,7 +214,7 @@ void JobRunner::start() {
                             .set_flags(dpp::m_ephemeral));
         } catch (const std::exception& e) {
             bot_.log(dpp::ll_error, "job:cancel button threw: " + std::string(e.what()));
-            event.reply(dpp::message("⚠️ Something went wrong — the error has been logged.")
+            event.reply(dpp::message("⚠️ Something went wrong - the error has been logged.")
                             .set_flags(dpp::m_ephemeral));
         }
     });
@@ -326,7 +326,7 @@ void JobRunner::finish(std::int64_t job_id, const std::string& status,
     std::string emoji = status == "done" ? "✅" : status == "cancelled" ? "🛑" : "❌";
     std::string summary =
         emoji + " Job #" + std::to_string(job_id) + " " + status +
-        (note.empty() ? "" : " — " + note) + "\nScanned: " + std::to_string(scanned) +
+        (note.empty() ? "" : " - " + note) + "\nScanned: " + std::to_string(scanned) +
         " | Matched: " + std::to_string(matched) + " | Actioned: " + std::to_string(actioned);
 
     // Update the existing progress message in place (no duplicate post).

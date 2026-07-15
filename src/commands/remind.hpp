@@ -8,7 +8,7 @@
 
 namespace broom::commands {
 
-// /remind set|list|cancel — personal reminders delivered as a mention in the
+// /remind set|list|cancel - personal reminders delivered as a mention in the
 // channel where they were set. Rows live in the reminders table
 // (kind='reminder'); delivery is handled by ScheduleService (schedule.hpp),
 // which /schedule shares.

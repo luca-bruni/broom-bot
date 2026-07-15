@@ -17,11 +17,11 @@ class Db;
 
 namespace broom::commands {
 
-// /schedule message|event — mod-gated scheduling (Manage Server).
+// /schedule message|event - mod-gated scheduling (Manage Server).
 //   message: the bot posts the text in a channel at the given time (rides the
 //            same timed-delivery table as /remind, kind='message').
 //   event:   creates a native Discord scheduled event (external/location type)
-//            immediately — Discord itself handles the countdown, so no row is
+//            immediately - Discord itself handles the countdown, so no row is
 //            stored for these.
 class Schedule : public Command {
 public:

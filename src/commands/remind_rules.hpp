@@ -19,19 +19,19 @@ inline constexpr std::int64_t kRemindMaxPendingPerUser = 25;
 inline std::string validate_reminder(std::optional<std::int64_t> seconds,
                                      const std::string& text) {
     if (!seconds) {
-        return "Invalid `in` — use a duration like `20m`, `2h`, or `1d` "
+        return "Invalid `in` - use a duration like `20m`, `2h`, or `1d` "
                "(units: s m h d w mo y).";
     }
     if (*seconds < kRemindMinSeconds) {
-        return "That's too soon — the minimum is " + std::to_string(kRemindMinSeconds) +
+        return "That's too soon - the minimum is " + std::to_string(kRemindMinSeconds) +
                " seconds.";
     }
     if (*seconds > kRemindMaxSeconds) {
-        return "That's too far out — the maximum is 2 years.";
+        return "That's too far out - the maximum is 2 years.";
     }
     if (text.empty()) return "The reminder message can't be empty.";
     if (text.size() > kRemindMaxLength) {
-        return "Reminder message too long — keep it under " +
+        return "Reminder message too long - keep it under " +
                std::to_string(kRemindMaxLength) + " characters.";
     }
     return "";

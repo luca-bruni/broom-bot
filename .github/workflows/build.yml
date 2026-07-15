@@ -1,7 +1,7 @@
 name: build
 
 # paths-ignore: skip CI for changes that cannot affect the build. Note: a PR
-# touching ONLY ignored paths leaves required checks "Expected" — merge those
+# touching ONLY ignored paths leaves required checks "Expected" - merge those
 # with `gh pr merge --admin` (or push docs directly to master).
 on:
   push:
@@ -63,7 +63,7 @@ jobs:
           key: dpp-${{ runner.os }}-${{ runner.arch }}-img${{ steps.keys.outputs.image }}-${{ steps.keys.outputs.dpp_sha }}
 
       # Note: cold Windows DPP builds take ~18-20 min. That is the real cost of
-      # DPP's ~140 TUs under MSVC /O2 /GL on 4 cores — DPP already compiles
+      # DPP's ~140 TUs under MSVC /O2 /GL on 4 cores - DPP already compiles
       # with /MP, so there is no easy parallelism win here. Cold builds only
       # happen on DPP bumps and runner image updates.
       - name: Configure (cache hit -> pre-built DPP, miss -> build DPP in-tree)
