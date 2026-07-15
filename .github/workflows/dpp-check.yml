@@ -1,0 +1,53 @@
+# Monthly check: is the pinned DPP submodule behind DPP's latest release?
+# Opens (at most one) issue when behind — bumping stays a deliberate, human
+# decision because each bump costs a cold DPP rebuild per platform in CI.
+name: dpp-check
+
+on:
+  schedule:
+    - cron: '0 9 1 * *' # 1st of the month, 09:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare pinned submodule with latest DPP release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pinned=$(git rev-parse HEAD:external/DPP)
+          latest_tag=$(gh api repos/brainboxdotcc/DPP/releases/latest --jq .tag_name)
+          status=$(gh api "repos/brainboxdotcc/DPP/compare/${latest_tag}...${pinned}" --jq .status)
+          echo "pinned=${pinned}  latest=${latest_tag}  status=${status}"
+
+          # identical/ahead of the release tag -> nothing to do
+          if [ "$status" = "identical" ] || [ "$status" = "ahead" ]; then
+            echo "Pinned DPP is up to date."
+            exit 0
+          fi
+
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+            --search 'in:title "DPP submodule behind"' --json number --jq length)
+          if [ "$existing" -gt 0 ]; then
+            echo "Reminder issue already open."
+            exit 0
+          fi
+
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "DPP submodule behind latest release (${latest_tag})" \
+            --body "The pinned DPP submodule (\`${pinned}\`) is **${status}** relative to the latest DPP release **${latest_tag}**.
+
+To bump:
+1. \`cd external/DPP && git fetch --tags && git checkout ${latest_tag} && cd ../..\`
+2. \`cmake -B build -DBB_BUILD_DPP=ON && cmake --build build --parallel 4\` (rebuilds DPP once)
+3. Run the bot against the dev guild, then PR as usual (expect one cold DPP rebuild per platform in CI).
+
+_Opened automatically by the monthly dpp-check workflow._"

@@ -2,10 +2,12 @@
 #include "commands/purge.hpp"
 #include "commands/remind.hpp"
 #include "commands/schedule.hpp"
+#include "core/backup.hpp"
 #include "core/catalog.hpp"
 #include "core/config.hpp"
 #include "core/db.hpp"
 #include "core/jobs.hpp"
+#include "core/logging.hpp"
 #include "core/metrics.hpp"
 #include "core/registry.hpp"
 #include "core/services.hpp"
@@ -61,8 +63,14 @@ int main() {
     migrations.insert(migrations.end(), metrics_steps.begin(), metrics_steps.end());
     db.migrate(migrations);
 
+    // Declared before the cluster so log handlers never outlive their sink.
+    broom::FileLogger file_log(config.data_dir + "/logs/broom.log");
+
     dpp::cluster bot(config.bot_token);
-    bot.on_log(dpp::utility::cout_logger());
+    bot.on_log([&file_log, console = dpp::utility::cout_logger()](const dpp::log_t& log) {
+        console(log);
+        file_log(log);
+    });
 
     broom::JobRunner jobs(bot, db);
     broom::CommandCatalog catalog;
@@ -86,6 +94,9 @@ int main() {
 
     broom::commands::ScheduleService schedule(bot, db);
     schedule.start();
+
+    broom::BackupService backups(db, config.data_dir);
+    backups.start();
 
     // Presence: alternate between "Watching N servers" and "Listening to
     // /help" once a minute (also sets the initial status on ready).

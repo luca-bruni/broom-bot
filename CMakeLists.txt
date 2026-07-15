@@ -98,9 +98,11 @@ target_link_libraries(sqlite3 PRIVATE Threads::Threads)
 
 add_executable(broom_bot
     src/main.cpp
+    src/core/backup.cpp
     src/core/config.cpp
     src/core/db.cpp
     src/core/jobs.cpp
+    src/core/logging.cpp
     src/core/registry.cpp
     src/commands/all_commands.cpp
     src/commands/about.cpp

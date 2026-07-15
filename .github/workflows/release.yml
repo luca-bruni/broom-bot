@@ -1,0 +1,104 @@
+# Tag push (v*) -> build all three platforms -> GitHub Release with archives.
+# Mirrors build.yml's steps/cache; Linux builds on ubuntu-22.04 (not -latest)
+# so the binary links against an older glibc and runs on Debian 12-era hosts.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            artifact: broom-bot-linux-x64
+          - os: windows-latest
+            artifact: broom-bot-windows-x64
+          - os: macos-latest
+            artifact: broom-bot-macos-arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev zlib1g-dev
+
+      - name: Compute cache key parts
+        id: keys
+        shell: bash
+        run: |
+          echo "dpp_sha=$(git rev-parse HEAD:external/DPP)" >> "$GITHUB_OUTPUT"
+          echo "image=${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache DPP install
+        id: dpp-cache
+        uses: actions/cache@v4
+        with:
+          path: external/DPP/install
+          key: dpp-release-${{ matrix.os }}-${{ runner.arch }}-img${{ steps.keys.outputs.image }}-${{ steps.keys.outputs.dpp_sha }}
+
+      - name: Configure
+        shell: bash
+        run: |
+          if [[ "${{ steps.dpp-cache.outputs.cache-hit }}" == "true" ]]; then
+            cmake -B build -DBB_BUILD_DPP=OFF -DBB_BUILD_TESTS=OFF
+          else
+            cmake -B build -DBB_BUILD_DPP=ON -DBB_BUILD_TESTS=OFF
+          fi
+
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+
+      - name: Package
+        shell: bash
+        run: |
+          out="dist/${{ matrix.artifact }}"
+          mkdir -p "$out"
+          cp .env.sample README.md LICENSE "$out"/
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            cp build/Release/broom_bot.exe build/Release/*.dll "$out"/
+            7z a "dist/${{ matrix.artifact }}.zip" "./$out/*"
+          else
+            cp build/broom_bot "$out"/
+            # dpp is a shared library; ship it next to the exe with an rpath-free
+            # run script for simplicity.
+            cp external/DPP/install/lib/libdpp* "$out"/ 2>/dev/null || true
+            printf '#!/bin/sh\ncd "$(dirname "$0")"\nLD_LIBRARY_PATH=. DYLD_LIBRARY_PATH=. ./broom_bot\n' > "$out/run.sh"
+            chmod +x "$out/run.sh"
+            tar czf "dist/${{ matrix.artifact }}.tar.gz" -C dist "${{ matrix.artifact }}"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" --generate-notes --title "$GITHUB_REF_NAME"
