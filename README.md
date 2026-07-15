@@ -16,6 +16,10 @@ add commands.
   - Debian/Ubuntu: `apt install libssl-dev zlib1g-dev`
   - Windows: bundled with DPP, nothing to install
 
+Prebuilt binaries for all three platforms are attached to
+[GitHub Releases](https://github.com/luca-bruni/broom-bot/releases) (created
+from `v*` tags).
+
 ## Building
 
 ```sh

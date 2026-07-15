@@ -26,6 +26,8 @@ src/
                       for job worker code
     metrics.hpp       Command-usage counters (written via the registry's
                       usage hook, read by /stats)
+    backup.hpp/.cpp   BackupService: daily VACUUM INTO snapshots, keeps 7
+    logging.hpp/.cpp  FileLogger: rotating log-file sink beside stdout
     duration.hpp      parse_duration_seconds ("30d", "1w2d", …)
     timeparse.hpp     date/snowflake/uptime parsing + formatting
     rng.hpp           Shared thread-safe RNG helper
@@ -103,7 +105,11 @@ data/                 Runtime SQLite database (gitignored; DATA_DIR)
   new steps at the end, even core ones.
 - Database path: `DATA_DIR` (default `./data/`, gitignored). It holds the job
   queue, per-guild settings, and feature tables. It lives only on the host
-  running the bot; back it up by copying the file.
+  running the bot.
+- **Backups**: `BackupService` snapshots the live database daily (and at
+  startup) via `VACUUM INTO` to `DATA_DIR/backups/`, keeping the newest 7.
+  Logs land in `DATA_DIR/logs/broom.log` (rotating, via `FileLogger`) as well
+  as stdout.
 
 ## Background jobs
 
@@ -198,8 +204,14 @@ ASan+UBSan via `BB_BUILD_BOT=OFF`, no DPP needed) and `format` (clang-format
 check against the committed `.clang-format`).
 `external/DPP/install` is cached keyed on the pinned submodule SHA + runner image
 version: bumping the submodule triggers one DPP rebuild per platform, then builds
-take ~1–2 min. Master is branch-protected (all three checks required to merge;
-admin can still push docs directly).
+take ~1–2 min. Master is branch-protected (the three build checks plus
+`sanitize` and `format` required to merge; admin can still push docs directly).
+
+Two more workflows: `release.yml` builds all three platforms on a `v*` tag and
+attaches archives to a GitHub Release (Linux built on ubuntu-22.04 for older
+glibc compatibility); `dpp-check.yml` runs monthly and opens an issue if the
+pinned DPP submodule is behind DPP's latest release — bumps stay deliberate
+because each one costs a cold DPP rebuild per platform.
 
 ## Conventions
 
