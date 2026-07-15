@@ -67,6 +67,31 @@ inline bool has_link(const std::string& content) {
            content.find("https://") != std::string::npos;
 }
 
+// One-line preview of message content for the pre-delete match preview:
+// whitespace runs (incl. newlines) collapse to single spaces, leading space is
+// trimmed, and the result is truncated to max_bytes on a UTF-8 boundary with
+// an ellipsis. Pure so it can be unit-tested.
+inline std::string preview_snippet(const std::string& content, std::size_t max_bytes = 64) {
+    std::string collapsed;
+    bool pending_space = false;
+    for (unsigned char c : content) {
+        if (c == ' ' || c == '\n' || c == '\r' || c == '\t') {
+            pending_space = !collapsed.empty();
+            continue;
+        }
+        if (pending_space) {
+            collapsed += ' ';
+            pending_space = false;
+        }
+        collapsed += static_cast<char>(c);
+    }
+    if (collapsed.empty()) return "(no text)";
+    if (collapsed.size() <= max_bytes) return collapsed;
+    std::size_t cut = max_bytes;
+    while (cut > 0 && (static_cast<unsigned char>(collapsed[cut]) & 0xC0) == 0x80) --cut;
+    return collapsed.substr(0, cut) + "…";
+}
+
 // A message matches when it passes every provided filter. The keyword/pattern
 // content filter is an OR of the two; other filters are AND-combined. `re` is
 // the compiled pattern (nullptr when no pattern was given). Snowflake range

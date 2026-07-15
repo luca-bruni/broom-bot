@@ -121,3 +121,26 @@ TEST_CASE("message_matches: combined author + has + content") {
     CHECK_FALSE(message_matches(mv("buy now", 7), p, nullptr));          // no link
     CHECK_FALSE(message_matches(mv("hello http://x", 7), p, nullptr));   // no keyword
 }
+
+TEST_CASE("preview_snippet: collapses whitespace and trims") {
+    CHECK(preview_snippet("hello world") == "hello world");
+    CHECK(preview_snippet("a\nb\r\nc\td") == "a b c d");
+    CHECK(preview_snippet("  leading and   runs  ") == "leading and runs");
+    CHECK(preview_snippet("") == "(no text)");
+    CHECK(preview_snippet("\n\t  ") == "(no text)");
+}
+
+TEST_CASE("preview_snippet: truncates with ellipsis") {
+    std::string long_text(100, 'x');
+    auto s = preview_snippet(long_text, 10);
+    CHECK(s == std::string(10, 'x') + "…");
+    CHECK(preview_snippet("short", 10) == "short");
+    CHECK(preview_snippet(std::string(10, 'y'), 10) == std::string(10, 'y')); // boundary
+}
+
+TEST_CASE("preview_snippet: cuts on a UTF-8 boundary") {
+    // "ééééé" is 10 bytes (2 per char); cutting at 5 must back off to 4 bytes.
+    std::string accents = "\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9\xC3\xA9";
+    auto s = preview_snippet(accents, 5);
+    CHECK(s == std::string("\xC3\xA9\xC3\xA9") + "…");
+}

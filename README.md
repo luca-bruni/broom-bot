@@ -85,7 +85,7 @@ test server instantly instead of propagating globally (~1 h).
 
 | Command | Description |
 |---|---|
-| `/purge channel\|guild …` | Bulk-delete by keywords, author, pattern, `has`, `bots_only`, date range / `older_than`; dry-run → confirm, with Export |
+| `/purge channel\|guild …` | Bulk-delete by keywords, author, pattern, `has`, `bots_only`, date range / `older_than`; covers threads (incl. archived) and forum posts; dry-run → Preview/Export → confirm |
 | `/jobs list\|cancel` | View or cancel background jobs by ID |
 
 ## License
