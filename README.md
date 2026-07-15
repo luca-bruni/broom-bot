@@ -8,17 +8,34 @@ Builds from source on macOS, Linux, and Windows - verified by CI on every push.
 See [ARCHITECTURE.md](ARCHITECTURE.md) for how the project is structured and how to
 add commands.
 
-## Requirements
+## Install from a release (no toolchain needed)
+
+Prebuilt binaries for Windows (x64), Linux (x64), and macOS (arm64) are
+attached to [GitHub Releases](https://github.com/luca-bruni/broom-bot/releases).
+
+1. Download the archive for your platform and extract it.
+2. Create your config: `cp .env.sample .env`, then put your bot token in
+   `.env` (see [Running](#running) for the keys).
+3. Start the bot from inside the extracted folder:
+   - Windows: `broom_bot.exe`
+   - Linux/macOS: `./run.sh` (sets the library path for the bundled
+     `libdpp`, then launches `broom_bot`)
+
+Runtime notes: the Windows archive bundles every DLL it needs; Linux
+additionally expects the distro's OpenSSL 3 and zlib runtime libraries
+(present by default on Debian 12 / Ubuntu 22.04 and newer). The bot writes
+its database, backups, and logs to `./data/` next to where it runs.
+
+To update, extract the new release over the old folder; `.env` and `data/`
+carry over untouched.
+
+## Requirements (building from source)
 
 - CMake ≥ 3.20 and a C++20 compiler (MSVC, clang, or gcc)
 - OpenSSL and zlib development headers (DPP dependencies)
   - macOS: `brew install openssl`
   - Debian/Ubuntu: `apt install libssl-dev zlib1g-dev`
   - Windows: bundled with DPP, nothing to install
-
-Prebuilt binaries for all three platforms are attached to
-[GitHub Releases](https://github.com/luca-bruni/broom-bot/releases) (created
-from `v*` tags).
 
 ## Building
 
