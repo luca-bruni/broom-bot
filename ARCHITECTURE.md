@@ -171,7 +171,9 @@ Two modes via `BB_BUILD_DPP` (default `OFF`):
   SDK (`external/DPP/win32`) so `find_package(OpenSSL)` - invoked transitively by
   DPP's package config - can't latch onto an unrelated OpenSSL on PATH (e.g.
   PostgreSQL's 3.x), which would be ABI-incompatible with `dpp.dll` and the
-  `libssl-1_1`/`libcrypto-1_1` DLLs copied next to the exe.
+  `libssl-1_1`/`libcrypto-1_1` DLLs copied next to the exe. If a DPP bump ever
+  drops or reshapes the bundled SDK, configure emits a warning instead of
+  silently falling back to the system OpenSSL.
 
 Both modes link the same `dpp::dpp` target. On Windows, post-build/install steps
 copy `dpp.dll` + DPP's bundled deps (`external/DPP/win32/bin`) next to the exe.

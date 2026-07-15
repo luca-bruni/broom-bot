@@ -45,6 +45,15 @@ list(PREPEND CMAKE_PREFIX_PATH "${DPP_INSTALL_DIR}")
 # PostgreSQL's 3.x), which is ABI-incompatible with dpp.dll.
 if(WIN32 AND EXISTS "${DPP_SOURCE_DIR}/win32/lib/libssl.lib")
     set(OPENSSL_ROOT_DIR "${DPP_SOURCE_DIR}/win32" CACHE PATH "OpenSSL root (DPP bundled)" FORCE)
+elseif(WIN32 AND BB_BUILD_BOT)
+    # A DPP bump that drops or reshapes the bundled SDK would silently
+    # deactivate the pin and let find_package(OpenSSL) hunt the system again.
+    # Make that loud so the bump PR has to deal with it.
+    message(WARNING
+        "DPP's bundled OpenSSL SDK not found at external/DPP/win32 - "
+        "find_package(OpenSSL) will search the system, which risks linking an "
+        "OpenSSL that is ABI-incompatible with dpp.dll (see the Windows quirks "
+        "in ARCHITECTURE.md). Check what the pinned DPP release bundles.")
 endif()
 
 if(BB_BUILD_BOT AND BB_BUILD_DPP)
