@@ -129,29 +129,86 @@ bool delete_bulk(JobContext& ctx, dpp::snowflake channel,
         .value_or(false);
 }
 
-std::vector<dpp::snowflake> resolve_guild_channels(JobContext& ctx) {
-    std::vector<dpp::snowflake> channels;
-    dpp::guild* guild = dpp::find_guild(ctx.guild_id);
-    if (guild) {
-        for (auto cid : guild->channels) {
-            dpp::channel* ch = dpp::find_channel(cid);
-            if (ch && (ch->is_text_channel() || ch->is_news_channel()))
-                channels.push_back(cid);
-        }
-    }
-    // Active threads (archived threads are out of scope for v1).
+// Active threads in the guild; parent = 0 keeps all, otherwise only threads
+// under that channel (used for forum-channel targets).
+std::vector<dpp::snowflake> collect_active_threads(JobContext& ctx, dpp::snowflake parent) {
     auto threads = await_rest<std::vector<dpp::snowflake>>(ctx, [&](auto done) {
         ctx.bot.threads_get_active(
-            ctx.guild_id, [done](const dpp::confirmation_callback_t& cb) {
+            ctx.guild_id, [done, parent](const dpp::confirmation_callback_t& cb) {
                 std::vector<dpp::snowflake> t;
                 if (!cb.is_error()) {
                     const auto& at = std::get<dpp::active_threads>(cb.value);
-                    for (const auto& [id, info] : at) t.push_back(id);
+                    for (const auto& [id, info] : at) {
+                        if (!parent || info.active_thread.parent_id == parent) t.push_back(id);
+                    }
                 }
                 done(std::move(t));
             });
     });
-    if (threads) channels.insert(channels.end(), threads->begin(), threads->end());
+    return threads.value_or(std::vector<dpp::snowflake>{});
+}
+
+// Public archived threads under one channel, following the archive-timestamp
+// pagination cursor. Private archived threads stay out of scope (they need
+// per-thread membership or Manage Threads). Capped at 2000 threads/channel.
+std::vector<dpp::snowflake> collect_archived_threads(JobContext& ctx, dpp::snowflake channel) {
+    std::vector<dpp::snowflake> threads;
+    time_t before = 0; // 0 = newest first
+    for (int batch_no = 0; batch_no < 20 && !ctx.cancelled(); ++batch_no) {
+        using Batch = std::vector<std::pair<dpp::snowflake, time_t>>;
+        auto batch = await_rest<Batch>(ctx, [&](auto done) {
+            ctx.bot.threads_get_public_archived(
+                channel, before, 100, [done](const dpp::confirmation_callback_t& cb) {
+                    Batch b;
+                    if (!cb.is_error()) {
+                        const auto& tm = std::get<dpp::thread_map>(cb.value);
+                        for (const auto& [id, th] : tm)
+                            b.push_back({id, th.metadata.archive_timestamp});
+                    }
+                    done(std::move(b));
+                });
+        });
+        if (!batch || batch->empty()) break;
+        time_t oldest = 0;
+        for (const auto& [id, archived_at] : *batch) {
+            threads.push_back(id);
+            if (oldest == 0 || archived_at < oldest) oldest = archived_at;
+        }
+        if (batch->size() < 100) break;
+        before = oldest;
+    }
+    return threads;
+}
+
+std::vector<dpp::snowflake> resolve_guild_channels(JobContext& ctx) {
+    std::vector<dpp::snowflake> channels;
+    std::vector<dpp::snowflake> thread_parents;
+    dpp::guild* guild = dpp::find_guild(ctx.guild_id);
+    if (guild) {
+        for (auto cid : guild->channels) {
+            dpp::channel* ch = dpp::find_channel(cid);
+            if (!ch) continue;
+            if (ch->is_text_channel() || ch->is_news_channel()) {
+                channels.push_back(cid); // scannable, and may own threads
+                thread_parents.push_back(cid);
+            } else if (ch->is_forum() || ch->is_media_channel()) {
+                // Forum/media posts are threads; the channel itself holds no
+                // messages, so it only contributes as a thread parent.
+                thread_parents.push_back(cid);
+            }
+        }
+    }
+
+    auto active = collect_active_threads(ctx, 0);
+    channels.insert(channels.end(), active.begin(), active.end());
+    for (auto parent : thread_parents) {
+        if (ctx.cancelled()) break;
+        auto archived = collect_archived_threads(ctx, parent);
+        channels.insert(channels.end(), archived.begin(), archived.end());
+    }
+
+    std::sort(channels.begin(), channels.end());
+    channels.erase(std::unique(channels.begin(), channels.end()), channels.end());
     return channels;
 }
 
@@ -176,7 +233,16 @@ void run_purge_scan(JobContext& ctx) {
 
     std::vector<dpp::snowflake> channels;
     if (p.scope == "channel") {
-        channels.push_back(dpp::snowflake(p.channel_id));
+        dpp::snowflake target(p.channel_id);
+        dpp::channel* ch = dpp::find_channel(target);
+        if (ch && (ch->is_forum() || ch->is_media_channel())) {
+            // Forum posts are threads; scan those instead of the container.
+            channels = collect_active_threads(ctx, target);
+            auto archived = collect_archived_threads(ctx, target);
+            channels.insert(channels.end(), archived.begin(), archived.end());
+        } else {
+            channels.push_back(target);
+        }
     } else {
         channels = resolve_guild_channels(ctx);
     }
@@ -289,6 +355,11 @@ void run_purge_scan(JobContext& ctx) {
                                .set_id("purge:confirm:" + std::to_string(ctx.job_id)))
             .add_component(dpp::component()
                                .set_type(dpp::cot_button)
+                               .set_label("Preview")
+                               .set_style(dpp::cos_secondary)
+                               .set_id("purge:preview:" + std::to_string(ctx.job_id)))
+            .add_component(dpp::component()
+                               .set_type(dpp::cot_button)
                                .set_label("Export")
                                .set_style(dpp::cos_primary)
                                .set_id("purge:export:" + std::to_string(ctx.job_id)))
@@ -389,6 +460,65 @@ void run_purge_delete(JobContext& ctx) {
             ctx.progress(0, total, actioned, "deleting");
         }
     }
+}
+
+// --- Match preview -----------------------------------------------------------
+
+// Ephemeral, paginated view of recorded matches; navigation buttons carry
+// "purge:preview:<scan_job_id>:<page>".
+dpp::message preview_message(Services& services, std::int64_t scan_job_id, int page) {
+    std::int64_t total = 0;
+    {
+        auto stmt =
+            services.db.prepare("SELECT COUNT(*) FROM purge_matches WHERE scan_job_id=?1");
+        stmt.bind(1, scan_job_id);
+        stmt.step();
+        total = stmt.column_int(0);
+    }
+    int pages = static_cast<int>(std::max<std::int64_t>(1, (total + 9) / 10));
+    page = std::clamp(page, 0, pages - 1);
+
+    std::string body;
+    auto stmt = services.db.prepare(
+        "SELECT channel_id, created_at, author_id, content FROM purge_matches "
+        "WHERE scan_job_id=?1 ORDER BY channel_id, message_id LIMIT 10 OFFSET ?2");
+    stmt.bind(1, scan_job_id).bind(2, static_cast<std::int64_t>(page) * 10);
+    while (stmt.step()) {
+        auto chan = static_cast<std::uint64_t>(stmt.column_int(0));
+        std::int64_t created_sec = stmt.column_int(1) / 1000;
+        auto author = static_cast<std::uint64_t>(stmt.column_int(2));
+        body += "<#" + std::to_string(chan) + "> <t:" + std::to_string(created_sec) +
+                ":d> <@" + std::to_string(author) +
+                ">: " + preview_snippet(stmt.column_text(3)) + "\n";
+    }
+    if (body.empty()) body = "No matches recorded.";
+
+    dpp::embed embed;
+    embed.set_title("Purge preview")
+        .set_description(body)
+        .set_footer(dpp::embed_footer().set_text(std::to_string(total) + " match(es) - page " +
+                                                 std::to_string(page + 1) + "/" +
+                                                 std::to_string(pages)))
+        .set_color(kEmbedColor);
+
+    dpp::message msg = dpp::message().add_embed(embed).set_flags(dpp::m_ephemeral);
+    if (pages > 1) {
+        std::string base = "purge:preview:" + std::to_string(scan_job_id) + ":";
+        msg.add_component(dpp::component()
+                              .add_component(dpp::component()
+                                                 .set_type(dpp::cot_button)
+                                                 .set_label("◀ Prev")
+                                                 .set_style(dpp::cos_secondary)
+                                                 .set_id(base + std::to_string(page - 1))
+                                                 .set_disabled(page <= 0))
+                              .add_component(dpp::component()
+                                                 .set_type(dpp::cot_button)
+                                                 .set_label("Next ▶")
+                                                 .set_style(dpp::cos_secondary)
+                                                 .set_id(base + std::to_string(page + 1))
+                                                 .set_disabled(page >= pages - 1)));
+    }
+    return msg;
 }
 
 } // namespace
@@ -525,18 +655,29 @@ void Purge::handle(const dpp::slashcommand_t& event) const {
 }
 
 void Purge::handle_button(const dpp::button_click_t& event) const {
-    // custom_id: "purge:<action>:<scan_job_id>" where action is confirm,
-    // export, or cancel. Parsed defensively - custom_ids arrive from clients.
+    // custom_id: "purge:<action>:<scan_job_id>[:<page>]" where action is
+    // confirm, preview, export, or cancel; the page suffix only appears on
+    // preview navigation. Parsed defensively - custom_ids arrive from clients.
     auto first = event.custom_id.find(':');
     auto second = event.custom_id.find(':', first + 1);
     if (first == std::string::npos || second == std::string::npos) return;
     std::string action = event.custom_id.substr(first + 1, second - first - 1);
 
+    auto third = event.custom_id.find(':', second + 1);
     std::int64_t scan_job_id = 0;
     const char* id_begin = event.custom_id.data() + second + 1;
-    const char* id_end = event.custom_id.data() + event.custom_id.size();
+    const char* id_end =
+        event.custom_id.data() + (third == std::string::npos ? event.custom_id.size() : third);
     auto [ptr, ec] = std::from_chars(id_begin, id_end, scan_job_id);
     if (ec != std::errc{} || ptr != id_end) return;
+
+    int page = -1; // -1 = first open (fresh ephemeral reply, not an update)
+    if (third != std::string::npos) {
+        const char* page_begin = event.custom_id.data() + third + 1;
+        const char* page_end = event.custom_id.data() + event.custom_id.size();
+        auto [pptr, pec] = std::from_chars(page_begin, page_end, page);
+        if (pec != std::errc{} || pptr != page_end) return;
+    }
 
     std::int64_t started_by = 0;
     {
@@ -551,8 +692,9 @@ void Purge::handle_button(const dpp::button_click_t& event) const {
     }
     if (static_cast<std::uint64_t>(started_by) !=
         static_cast<std::uint64_t>(event.command.usr.id)) {
-        event.reply(dpp::message("Only the person who started this purge can confirm it.")
-                        .set_flags(dpp::m_ephemeral));
+        event.reply(
+            dpp::message("Only the person who started this purge can use these buttons.")
+                .set_flags(dpp::m_ephemeral));
         return;
     }
 
@@ -562,6 +704,18 @@ void Purge::handle_button(const dpp::button_click_t& event) const {
             .step();
         event.reply(dpp::ir_update_message,
                     dpp::message("🚫 Purge cancelled - nothing was deleted."));
+        return;
+    }
+
+    if (action == "preview") {
+        dpp::message msg = preview_message(*services_, scan_job_id, page < 0 ? 0 : page);
+        // First open replies with a fresh ephemeral message so the
+        // Confirm/Export/Cancel prompt stays intact; navigation updates it.
+        if (page < 0) {
+            event.reply(msg);
+        } else {
+            event.reply(dpp::ir_update_message, msg);
+        }
         return;
     }
 

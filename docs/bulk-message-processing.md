@@ -5,9 +5,12 @@ ARCHITECTURE.md for the command framework this builds on.
 
 Implemented in PR 2: `/purge channel|guild` with keywords + date ranges,
 dry-run → Confirm/Cancel, bulk-delete fast path, old-message slow path,
-per-channel cursor resume. Known v1 limitations: scanning is sequential (no
-cross-channel parallelism yet); archived threads are not enumerated; the
-`source` option is deferred to PR 3 (no cache exists yet).
+per-channel cursor resume. Purge v2 added: active + public archived threads
+are enumerated (guild-wide and for forum/media channel targets, which scan
+their posts instead of the container channel), and a paginated ephemeral
+Preview of matches before confirming. Remaining limitations: scanning is
+sequential (no cross-channel parallelism yet); private archived threads are
+not enumerated; the `source` option is deferred to PR 3 (no cache exists yet).
 
 ## Goals
 
