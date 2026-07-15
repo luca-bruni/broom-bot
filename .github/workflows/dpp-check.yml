@@ -1,7 +1,7 @@
 # Monthly check: is the pinned DPP submodule behind DPP's latest release?
 # Opens (at most one) issue when behind - bumping stays a deliberate, human
 # decision because each bump costs a cold DPP rebuild per platform in CI.
-name: dpp-check
+name: dpp
 
 on:
   schedule:
@@ -41,13 +41,15 @@ jobs:
             exit 0
           fi
 
+          body=$(printf '%s\n' \
+            "The pinned DPP submodule (\`${pinned}\`) is **${status}** relative to the latest DPP release **${latest_tag}**." \
+            "" \
+            "To bump:" \
+            "1. \`cd external/DPP && git fetch --tags && git checkout ${latest_tag} && cd ../..\`" \
+            "2. \`cmake -B build -DBB_BUILD_DPP=ON && cmake --build build --parallel 4\` (rebuilds DPP once)" \
+            "3. Run the bot against the dev guild, then PR as usual (expect one cold DPP rebuild per platform in CI)." \
+            "" \
+            "_Opened automatically by the monthly dpp check workflow._")
           gh issue create --repo "$GITHUB_REPOSITORY" \
             --title "DPP submodule behind latest release (${latest_tag})" \
-            --body "The pinned DPP submodule (\`${pinned}\`) is **${status}** relative to the latest DPP release **${latest_tag}**.
-
-To bump:
-1. \`cd external/DPP && git fetch --tags && git checkout ${latest_tag} && cd ../..\`
-2. \`cmake -B build -DBB_BUILD_DPP=ON && cmake --build build --parallel 4\` (rebuilds DPP once)
-3. Run the bot against the dev guild, then PR as usual (expect one cold DPP rebuild per platform in CI).
-
-_Opened automatically by the monthly dpp-check workflow._"
+            --body "$body"
